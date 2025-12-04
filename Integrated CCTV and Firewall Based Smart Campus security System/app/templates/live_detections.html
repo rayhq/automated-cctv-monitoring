@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Detections - Smart Campus Security</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #1e3c72;
+        }
+
+        .back-btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 10px 20px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .filter-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+
+        .filter-btn:hover {
+            border-color: #3498db;
+        }
+
+        .detections-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .detection-card {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .detection-card:hover {
+            border-color: #3498db;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .detection-type {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .detection-type.person {
+            background: #2980b9;
+        }
+
+        .detection-type.face {
+            background: #27ae60;
+        }
+
+        .detection-type.eye {
+            background: #8e44ad;
+        }
+
+        .detection-info {
+            font-size: 13px;
+            line-height: 1.8;
+            color: #555;
+        }
+
+        .detection-info strong {
+            color: #1e3c72;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-box h3 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .stat-box p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>👁️ Live Detections Monitor</h1>
+        <a href="{{ url_for('dashboard') }}" class="back-btn">← Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <div class="stats-row">
+            <div class="stat-box">
+                <h3 id="total-detections">0</h3>
+                <p>Total Detections</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="persons-count">0</h3>
+                <p>Persons Detected</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="faces-count">0</h3>
+                <p>Faces Detected</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="eyes-count">0</h3>
+                <p>Eyes Detected</p>
+            </div>
+        </div>
+
+        <div class="filters">
+            <button class="filter-btn active" onclick="filterDetections('all')">All Detections</button>
+            <button class="filter-btn" onclick="filterDetections('persons')">👤 Persons</button>
+            <button class="filter-btn" onclick="filterDetections('faces')">😊 Faces</button>
+            <button class="filter-btn" onclick="filterDetections('eyes')">👁️ Eyes</button>
+        </div>
+
+        <div id="detections-container" class="detections-grid">
+            <!-- Detections will load here -->
+        </div>
+    </div>
+
+    <script>
+        let currentFilter = 'all';
+        let allDetections = [];
+
+        function filterDetections(type) {
+            currentFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            renderDetections();
+        }
+
+        function renderDetections() {
+            const container = document.getElementById('detections-container');
+            container.innerHTML = '';
+
+            let filtered = allDetections;
+            if (currentFilter !== 'all') {
+                filtered = allDetections.filter(d => d.type === currentFilter);
+            }
+
+            filtered.forEach(detection => {
+                const card = document.createElement('div');
+                card.className = 'detection-card';
+                card.innerHTML = `
+                    <span class="detection-type ${detection.type}">${detection.type.toUpperCase()}</span>
+                    <div class="detection-info">
+                        <div><strong>Position:</strong> (${detection.x}, ${detection.y})</div>
+                        <div><strong>Size:</strong> ${detection.width}x${detection.height}px</div>
+                        <div><strong>Confidence:</strong> ${(detection.confidence * 100).toFixed(1)}%</div>
+                        <div><strong>Time:</strong> ${new Date(detection.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function loadDetections() {
+            fetch('{{ url_for("api_detections") }}')
+                .then(response => response.json())
+                .then(data => {
+                    allDetections = [
+                        ...data.persons.map(d => ({...d, type: 'persons'})),
+                        ...data.faces.map(d => ({...d, type: 'faces'})),
+                        ...data.eyes.map(d => ({...d, type: 'eyes'}))
+                    ];
+
+                    // Update stats
+                    document.getElementById('total-detections').textContent = allDetections.length;
+                    document.getElementById('persons-count').textContent = data.persons.length;
+                    document.getElementById('faces-count').textContent = data.faces.length;
+                    document.getElementById('eyes-count').textContent = data.eyes.length;
+
+                    renderDetections();
+                });
+        }
+
+        // Load detections every 1 second
+        loadDetections();
+        setInterval(loadDetections, 1000);
+    </script>
+</body>
+</html>

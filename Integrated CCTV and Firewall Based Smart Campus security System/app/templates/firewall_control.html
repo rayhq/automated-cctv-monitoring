@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firewall Control - Smart Campus Security</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #1e3c72;
+        }
+
+        .back-btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel h2 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-family: inherit;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #e74c3c;
+        }
+
+        button {
+            background: #e74c3c;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #c0392b;
+        }
+
+        .ip-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            padding: 10px;
+        }
+
+        .ip-item {
+            background: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ip-item.blocked {
+            border-left: 4px solid #e74c3c;
+        }
+
+        .ip-item.whitelisted {
+            border-left: 4px solid #2ecc71;
+        }
+
+        .remove-btn {
+            background: #e74c3c;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .status-card {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .status-card h3 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .status-card p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .threat-log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 4px solid #f39c12;
+            font-size: 13px;
+        }
+
+        .threat-log strong {
+            color: #1e3c72;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔐 Firewall Control Panel</h1>
+        <a href="{{ url_for('dashboard') }}" class="back-btn">← Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <!-- Block IP Section -->
+        <div class="panel">
+            <h2>🚫 Block IP Address</h2>
+            <form onsubmit="blockIP(event)">
+                <div class="form-group">
+                    <label>IP Address</label>
+                    <input type="text" id="block-ip" placeholder="Enter IP address" required>
+                </div>
+                <div class="form-group">
+                    <label>Reason</label>
+                    <textarea id="block-reason" placeholder="Reason for blocking" rows="3"></textarea>
+                </div>
+                <button type="submit">Block IP</button>
+            </form>
+        </div>
+
+        <!-- Unblock IP Section -->
+        <div class="panel">
+            <h2>✓ Unblock IP Address</h2>
+            <form onsubmit="unblockIP(event)">
+                <div class="form-group">
+                    <label>IP Address</label>
+                    <input type="text" id="unblock-ip" placeholder="Enter IP address" required>
+                </div>
+                <button type="submit">Unblock IP</button>
+            </form>
+        </div>
+
+        <!-- Blocked IPs -->
+        <div class="panel">
+            <h2>🔒 Blocked IPs</h2>
+            <div id="blocked-ips" class="ip-list">
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <!-- Whitelisted IPs -->
+        <div class="panel">
+            <h2>✓ Whitelisted IPs</h2>
+            <div id="whitelisted-ips" class="ip-list">
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <!-- Firewall Status -->
+        <div class="panel full-width">
+            <h2>📊 Firewall Status</h2>
+            <div id="firewall-status">
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <!-- Threat Logs -->
+        <div class="panel full-width">
+            <h2>⚠️ Recent Threat Logs</h2>
+            <div id="threat-logs">
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function blockIP(e) {
+            e.preventDefault();
+            const ip = document.getElementById('block-ip').value;
+            const reason = document.getElementById('block-reason').value;
+
+            fetch('{{ url_for("firewall_block") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ip, reason})
+            })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.blocked ? 'IP blocked successfully' : 'Failed to block IP');
+                document.getElementById('block-ip').value = '';
+                document.getElementById('block-reason').value = '';
+                loadStatus();
+            });
+        }
+
+        function unblockIP(e) {
+            e.preventDefault();
+            const ip = document.getElementById('unblock-ip').value;
+
+            fetch('{{ url_for("firewall_unblock") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ip})
+            })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.unblocked ? 'IP unblocked successfully' : 'Failed to unblock IP');
+                document.getElementById('unblock-ip').value = '';
+                loadStatus();
+            });
+        }
+
+        function loadStatus() {
+            fetch('{{ url_for("firewall_status") }}')
+                .then(r => r.json())
+                .then(status => {
+                    // Blocked IPs
+                    const blockedEl = document.getElementById('blocked-ips');
+                    blockedEl.innerHTML = status.blocked_ips.length > 0 ?
+                        status.blocked_ips.map(ip => `
+                            <div class="ip-item blocked">
+                                <span>${ip}</span>
+                                <button class="remove-btn" onclick="unblockIP({preventDefault: () => {document.getElementById('unblock-ip').value='${ip}';}})">Remove</button>
+                            </div>
+                        `).join('') :
+                        '<p style="color: #2ecc71; text-align: center;">No blocked IPs</p>';
+
+                    // Whitelisted IPs
+                    const whitelistedEl = document.getElementById('whitelisted-ips');
+                    const whitelistedCount = 3; // Example
+                    whitelistedEl.innerHTML = `
+                        <p>Whitelisted addresses: ${whitelistedCount}</p>
+                        <p style="font-size: 11px; color: #999;">Protected from automatic blocking</p>
+                    `;
+
+                    // Status overview
+                    const statusEl = document.getElementById('firewall-status');
+                    statusEl.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div class="status-card">
+                                <h3>${status.blocked_ips_count}</h3>
+                                <p>Blocked IPs</p>
+                            </div>
+                            <div class="status-card" style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);">
+                                <h3>${status.total_threats_logged}</h3>
+                                <p>Threats Logged</p>
+                            </div>
+                            <div class="status-card" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">
+                                <h3>${status.active_ips_with_suspicious_activity}</h3>
+                                <p>Suspicious IPs</p>
+                            </div>
+                        </div>
+                    `;
+
+                    // Threat logs
+                    const logsEl = document.getElementById('threat-logs');
+                    logsEl.innerHTML = status.recent_threats.length > 0 ?
+                        status.recent_threats.map(threat => `
+                            <div class="threat-log">
+                                <strong>${threat.action}</strong><br>
+                                <small>${threat.timestamp}</small><br>
+                                ${threat.reason ? `<small>Reason: ${threat.reason}</small>` : ''}
+                            </div>
+                        `).join('') :
+                        '<p style="text-align: center; color: #999;">No recent threats</p>';
+                });
+        }
+
+        // Initial load and refresh every 10 seconds
+        loadStatus();
+        setInterval(loadStatus, 10000);
+    </script>
+</body>
+</html>

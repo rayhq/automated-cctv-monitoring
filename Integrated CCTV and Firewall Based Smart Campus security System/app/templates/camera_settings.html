@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Settings - Smart Campus Security</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #1e3c72;
+        }
+
+        .back-btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel h2 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .camera-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+        }
+
+        .camera-card h3 {
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+
+        .camera-info {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.8;
+            margin-bottom: 12px;
+        }
+
+        .camera-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #2ecc71;
+            color: white;
+        }
+
+        .camera-status.offline {
+            background: #e74c3c;
+        }
+
+        .camera-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            flex: 1;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-box h3 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .stat-box p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📹 Camera Settings</h1>
+        <a href="{{ url_for('dashboard') }}" class="back-btn">← Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <!-- Add New Camera -->
+        <div class="panel">
+            <h2>➕ Add New Camera</h2>
+            <form onsubmit="addCamera(event)">
+                <div class="form-group">
+                    <label>Camera ID</label>
+                    <input type="text" id="camera-id" placeholder="e.g., CAM-001" required>
+                </div>
+                <div class="form-group">
+                    <label>Camera Name</label>
+                    <input type="text" id="camera-name" placeholder="e.g., Main Gate" required>
+                </div>
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" id="camera-location" placeholder="e.g., Building A, Floor 1" required>
+                </div>
+                <div class="form-group">
+                    <label>Stream URL</label>
+                    <input type="text" id="camera-url" placeholder="e.g., rtsp://192.168.1.100:554/stream">
+                </div>
+                <div class="form-group">
+                    <label>Resolution</label>
+                    <select id="camera-resolution">
+                        <option value="1080p">1080p Full HD</option>
+                        <option value="720p">720p HD</option>
+                        <option value="480p">480p SD</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Frame Rate (FPS)</label>
+                    <input type="number" id="camera-fps" value="30" min="1" max="60">
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="camera-ai" checked>
+                    <label for="camera-ai">Enable AI Recognition</label>
+                </div>
+                <button type="submit">Add Camera</button>
+            </form>
+        </div>
+
+        <!-- Camera Statistics -->
+        <div class="panel">
+            <h2>📊 Camera Statistics</h2>
+            <div class="stats">
+                <div class="stat-box">
+                    <h3 id="total-cameras">0</h3>
+                    <p>Total Cameras</p>
+                </div>
+                <div class="stat-box" style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);">
+                    <h3 id="active-cameras">0</h3>
+                    <p>Active Cameras</p>
+                </div>
+            </div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                <p><strong>Total Resolution:</strong> <span id="total-resolution">0</span> MP</p>
+                <p><strong>Average FPS:</strong> <span id="avg-fps">0</span> FPS</p>
+                <p><strong>AI Enabled:</strong> <span id="ai-enabled">0</span> cameras</p>
+            </div>
+        </div>
+
+        <!-- Cameras List -->
+        <div class="panel full-width">
+            <h2>🎥 Connected Cameras</h2>
+            <div id="cameras-list">
+                <p style="text-align: center; color: #999;">Loading cameras...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function addCamera(e) {
+            e.preventDefault();
+            
+            const cameraData = {
+                camera_id: document.getElementById('camera-id').value,
+                name: document.getElementById('camera-name').value,
+                location: document.getElementById('camera-location').value,
+                stream_url: document.getElementById('camera-url').value,
+                resolution: document.getElementById('camera-resolution').value,
+                fps: parseInt(document.getElementById('camera-fps').value),
+                is_ai_enabled: document.getElementById('camera-ai').checked
+            };
+
+            fetch('{{ url_for("api_cameras") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(cameraData)
+            })
+            .then(r => r.json())
+            .then(data => {
+                alert('Camera added successfully!');
+                document.getElementById('camera-id').value = '';
+                document.getElementById('camera-name').value = '';
+                document.getElementById('camera-location').value = '';
+                document.getElementById('camera-url').value = '';
+                loadCameras();
+            })
+            .catch(err => alert('Error adding camera: ' + err));
+        }
+
+        function loadCameras() {
+            fetch('{{ url_for("api_cameras") }}')
+                .then(r => r.json())
+                .then(cameras => {
+                    const container = document.getElementById('cameras-list');
+                    
+                    // Update stats
+                    document.getElementById('total-cameras').textContent = cameras.length;
+                    document.getElementById('active-cameras').textContent = cameras.filter(c => c.status === 'ACTIVE').length;
+                    document.getElementById('ai-enabled').textContent = cameras.filter(c => c.is_ai_enabled).length;
+                    
+                    const totalResolution = cameras.reduce((sum, c) => {
+                        const mp = c.resolution === '1080p' ? 2.1 : c.resolution === '720p' ? 0.9 : 0.3;
+                        return sum + mp;
+                    }, 0);
+                    document.getElementById('total-resolution').textContent = totalResolution.toFixed(1);
+                    
+                    const avgFps = cameras.length > 0 ? 
+                        Math.round(cameras.reduce((sum, c) => sum + (c.fps || 30), 0) / cameras.length) : 0;
+                    document.getElementById('avg-fps').textContent = avgFps;
+
+                    // Render cameras
+                    if (cameras.length === 0) {
+                        container.innerHTML = '<p style="text-align: center; color: #999;">No cameras configured</p>';
+                    } else {
+                        container.innerHTML = cameras.map(camera => `
+                            <div class="camera-card">
+                                <h3>📹 ${camera.name}</h3>
+                                <div class="camera-info">
+                                    <div><strong>ID:</strong> ${camera.camera_id}</div>
+                                    <div><strong>Location:</strong> ${camera.location}</div>
+                                    <div><strong>Resolution:</strong> ${camera.resolution} @ ${camera.fps} FPS</div>
+                                    <div><strong>Stream:</strong> ${camera.stream_url}</div>
+                                    <div><strong>AI:</strong> ${camera.is_ai_enabled ? '✓ Enabled' : '✗ Disabled'}</div>
+                                    <div style="margin-top: 8px;">
+                                        <span class="camera-status ${camera.status === 'OFFLINE' ? 'offline' : ''}">${camera.status}</span>
+                                    </div>
+                                </div>
+                                <div class="camera-actions">
+                                    <button class="btn-small" onclick="editCamera('${camera.camera_id}')">Edit</button>
+                                    <button class="btn-small btn-danger" onclick="deleteCamera('${camera.camera_id}')">Delete</button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                });
+        }
+
+        function editCamera(cameraId) {
+            alert('Edit functionality coming soon for camera: ' + cameraId);
+        }
+
+        function deleteCamera(cameraId) {
+            if (confirm('Are you sure you want to delete this camera?')) {
+                alert('Delete functionality coming soon for camera: ' + cameraId);
+            }
+        }
+
+        // Initial load and refresh every 30 seconds
+        loadCameras();
+        setInterval(loadCameras, 30000);
+    </script>
+</body>
+</html>

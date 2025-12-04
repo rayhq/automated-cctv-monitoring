@@ -28,7 +28,7 @@ To get started with the project, you will need to have the following installed o
 Once you have the prerequisites installed, you can clone the repository and install the dependencies using the following commands:
 
 ```bash
-git clone https://github.com/astraietm/astraietm.github.io.git
+git clone https://github.com/sangeethhk.github.io.git
 cd Integrated-CCTV-and-Firewall-Based-Smart-Campus-Security-System
 pip install -r requirements.txt
 ```

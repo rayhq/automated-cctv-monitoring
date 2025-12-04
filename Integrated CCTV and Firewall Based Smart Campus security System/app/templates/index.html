@@ -1,10 +1,187 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Smart Campus Security System</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Campus Security System - Home</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 60px 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .features {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .features h3 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .feature-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .feature-icon {
+            font-size: 24px;
+            margin-right: 15px;
+        }
+
+        .feature-text {
+            flex: 1;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .footer {
+            margin-top: 40px;
+            color: #999;
+            font-size: 12px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 40px 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>Smart Campus Security System</h1>
-    <img src="{{ url_for('video_feed') }}">
+    <div class="container">
+        <div class="logo">🛡️</div>
+        <h1>Smart Campus Security System</h1>
+        <p class="subtitle">Advanced 24/7 CCTV Monitoring with AI-Powered Recognition, Eye Tracking & Object Detection</p>
+
+        <div class="features">
+            <h3>Key Features</h3>
+            <div class="feature-item">
+                <div class="feature-icon">📹</div>
+                <div class="feature-text">Real-time CCTV Video Streaming</div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon">🤖</div>
+                <div class="feature-text">24/7 AI Face & Object Recognition</div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon">👁️</div>
+                <div class="feature-text">Advanced Eye Tracking & Pupil Detection</div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon">🔍</div>
+                <div class="feature-text">Real-time Person Tracking & Movement Analysis</div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon">🚨</div>
+                <div class="feature-text">Automated Threat Detection & Alerts</div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon">🔐</div>
+                <div class="feature-text">Firewall Integration & IP Blocking</div>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Dashboard</a>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 Smart Campus Security System. All rights reserved.</p>
+        </div>
+    </div>
 </body>
 </html>
