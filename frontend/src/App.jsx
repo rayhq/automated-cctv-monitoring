@@ -10,11 +10,15 @@ import CamerasPage from "./pages/CamerasPage";
 import LiveView from "./pages/LiveView";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
-import EventsPage from "./pages/EventsPage";   // 👈 ADD THIS
+import EventsPage from "./pages/EventsPage";
+
+// 🚫 TURN THIS OFF when you want real auth
+const DEV_BYPASS_AUTH = false; // or just delete this flag
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
 
+  // no dev bypass anymore
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -27,7 +31,10 @@ function App() {
     <AuthProvider>
       <Routes>
         {/* Public route */}
-        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/login"
+          element={<LoginPage />}
+        />
 
         {/* Protected routes */}
         <Route
@@ -42,7 +49,7 @@ function App() {
           <Route path="cameras" element={<CamerasPage />} />
           <Route path="live" element={<LiveView />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="events" element={<EventsPage />} />   {/* 👈 ADD THIS */}
+          <Route path="events" element={<EventsPage />} />
         </Route>
 
         {/* Fallback */}

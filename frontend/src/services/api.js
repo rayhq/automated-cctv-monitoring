@@ -1,10 +1,9 @@
 // src/services/api.js
 const API_BASE = "http://127.0.0.1:8000";
 
-// ** NEW FUNCTION ADDED HERE **
+// Helper for image URLs
 export const getImageUrl = (path) => {
   if (!path) return "";
-  // Ensures the path is correctly constructed, avoiding double slashes (e.g., //api/...)
   return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 };
 
@@ -23,22 +22,25 @@ export const api = {
 
     if (!res.ok) {
       throw new Error(data.detail || "Login failed");
-    } // Save token for future requests
+    }
 
+    // Save token for future requests
     localStorage.setItem("token", data.access_token);
     return data;
   },
 
   async logout() {
-    // Optional: Clear token on logout
-    localStorage.removeItem("token"); // If you use cookies, keep this line:
+    // Clear token on logout
+    localStorage.removeItem("token");
 
+    // Hit backend logout (optional, but fine to keep)
     await fetch(`${API_BASE}/api/auth/logout`, {
       method: "POST",
       credentials: "include",
     });
-  }, // ---------- CAMERAS ----------
+  },
 
+  // ---------- CAMERAS ----------
   async fetchCameras() {
     const res = await fetch(`${API_BASE}/api/cameras/`, {
       headers: {
@@ -67,13 +69,17 @@ export const api = {
 
   async toggleCamera(cameraId) {
     const res = await fetch(`${API_BASE}/api/cameras/${cameraId}/toggle`, {
-      method: "PATCH", // Ensure your backend uses PATCH or PUT
+      method: "PATCH",
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
         "Content-Type": "application/json",
       },
     });
-    if (!res.ok) throw new Error("Toggle failed");
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Toggle camera error:", res.status, text);
+      throw new Error(text || "Toggle failed");
+    }
     return res.json();
   },
 
@@ -85,32 +91,57 @@ export const api = {
       },
     });
     if (!res.ok) throw new Error("Delete failed");
-    return true; // Return true on success
-  }, // ---------- EVENTS (Fixes Red Banner) ----------
+    return true;
+  },
 
-  async fetchEvents() {
-    try {
-      const res = await fetch(`${API_BASE}/api/events`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+  // ---------- EVENTS ----------
+  // accept optional limit (defaults to 50)
+  async fetchEvents(limit = 50) {
+    const url = `${API_BASE}/api/events?limit=${encodeURIComponent(limit)}`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
 
-      if (!res.ok) throw new Error("Failed to fetch events");
-      return await res.json();
-    } catch (error) {
-      console.error("Error fetching events:", error);
-      throw error;
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Error fetching events:", res.status, text);
+      throw new Error("Failed to fetch events");
     }
-  }, // ---------- SYSTEM HEALTH (Fixes Offline Badge) ----------
 
+    return await res.json();
+  },
+
+  // ✅ NEW: aggregated stats for the dashboard header
+  async fetchEventStats() {
+    const res = await fetch(`${API_BASE}/api/events/stats`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Error fetching event stats:", res.status, text);
+      throw new Error("Failed to fetch event stats");
+    }
+
+    // expected shape:
+    // { total_events, intrusion_events, last_event_time }
+    return await res.json();
+  },
+
+  // ---------- SYSTEM HEALTH ----------
   async checkSystemHealth() {
     try {
       const res = await fetch(`${API_BASE}/api/health`);
       if (res.ok) {
-        return await res.json(); // Returns { status: "ok" }
+        return await res.json(); // { status: "ok" }
       }
       return { status: "error" };
     } catch (error) {

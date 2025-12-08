@@ -1,7 +1,6 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
 import {
   AlertCircle,
   Activity,
@@ -12,13 +11,23 @@ import {
   X,
   AlertTriangle,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+} from "recharts";
 import { api } from "../services/api";
 
 // Helper: convert backend UTC timestamp to local time (IST, etc.)
 const formatEventTime = (isoString) => {
   if (!isoString) return "N/A";
 
-  // If backend sent naive datetime (no timezone), treat it as UTC
   const normalized =
     isoString.endsWith("Z") || isoString.includes("+")
       ? isoString
@@ -34,45 +43,125 @@ const formatEventTime = (isoString) => {
   });
 };
 
+// ✅ Helper: convert "HH:00" label to 12-hour AM/PM
+const formatHourToAMPM = (label) => {
+  // label like "19:00"
+  if (!label) return "";
+  const [h] = label.split(":");
+  let hour = parseInt(h, 10);
+
+  if (Number.isNaN(hour)) return label;
+
+  const ampm = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12;
+  hour = hour === 0 ? 12 : hour;
+
+  return `${hour} ${ampm}`;
+};
+
 const Dashboard = () => {
   const [events, setEvents] = useState([]);
+  const [stats, setStats] = useState({
+    totalEvents: 0,
+    intrusionEvents: 0,
+    lastEventTime: null,
+    uniqueCameras: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
-  const [cameras, setCameras] = useState([]);
+  const [wsStatus, setWsStatus] = useState("disconnected"); // "connected" | "disconnected"
 
   const navigate = useNavigate();
 
+  // 1️⃣ Initial load from REST (events + stats)
   useEffect(() => {
-    const loadEvents = async () => {
+    const loadInitial = async () => {
       try {
         setError(null);
-        const data = await api.fetchEvents(50);
-        setEvents(data);
+
+        const [eventsData, statsData] = await Promise.all([
+          api.fetchEvents(50), // latest 50 events
+          api.fetchEventStats(), // true totals from backend
+        ]);
+
+        setEvents(eventsData);
+
+        const uniqueCameras = new Set(eventsData.map((e) => e.camera_id)).size;
+
+        setStats({
+          totalEvents: statsData.total_events,
+          intrusionEvents: statsData.intrusion_events,
+          lastEventTime: statsData.last_event_time,
+          uniqueCameras,
+        });
+
         setLoading(false);
       } catch (err) {
-        setError(err.message);
+        console.error("Failed to load dashboard data", err);
+        setError(err.message || "Failed to load dashboard data");
         setLoading(false);
       }
     };
 
-    const loadCameras = async () => {
-      try {
-        const cams = await api.fetchCameras();
-        setCameras(cams);
-      } catch (err) {
-        console.error("Failed to load cameras", err);
-      }
-    };
-
-    loadEvents();
-    loadCameras();
-
-    const interval = setInterval(loadEvents, 5000);
-    return () => clearInterval(interval);
+    loadInitial();
   }, []);
 
+  // 2️⃣ Live updates via WebSocket
+  useEffect(() => {
+    const ws = new WebSocket("ws://127.0.0.1:8000/api/events/ws");
+
+    ws.onopen = () => {
+      console.log("✅ dashboard ws connected");
+      setWsStatus("connected");
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "new_event" && msg.event) {
+          const newEvent = msg.event;
+
+          setEvents((prev) => {
+            // Avoid duplicates if event already in list
+            if (prev.some((ev) => ev.id === newEvent.id)) return prev;
+
+            const updated = [newEvent, ...prev].slice(0, 100);
+
+            // Update stats in sync with the updated list
+            setStats((prevStats) => ({
+              ...prevStats,
+              totalEvents: prevStats.totalEvents + 1,
+              intrusionEvents:
+                prevStats.intrusionEvents +
+                (newEvent.event_type === "intrusion" ? 1 : 0),
+              lastEventTime: newEvent.timestamp || prevStats.lastEventTime,
+              uniqueCameras: new Set(updated.map((e) => e.camera_id)).size,
+            }));
+
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error("WS parse error:", err);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log("❌ dashboard ws closed");
+      setWsStatus("disconnected");
+    };
+
+    ws.onerror = (err) => {
+      console.error("⚠️ dashboard ws error", err);
+      setWsStatus("disconnected");
+    };
+
+    return () => ws.close();
+  }, []);
+
+  // ---- Filters ----
   const filteredEvents = events.filter((event) => {
     const matchesSearch =
       event.camera_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -82,30 +171,128 @@ const Dashboard = () => {
     return matchesSearch && matchesType;
   });
 
-  const stats = {
-    totalEvents: events.length,
-    uniqueCameras: cameras.filter((c) => c.is_active).length,
-    intrusionEvents: events.filter((e) => e.event_type === "intrusion").length,
-    lastEventTime: events[0]?.timestamp || "N/A",
-  };
-
   const eventTypes = ["all", ...new Set(events.map((e) => e.event_type))];
 
+  // ============================================================
+  // 📊 DATA FOR CHARTS
+  // We bucket events by hour, then use that for BOTH charts.
+  // ============================================================
+
+  // 1) Bucket events by hour (key: "YYYY-MM-DD HH")
+  const bucketMap = new Map(); // key -> { key, label, total, perCamera: {cam: count} }
+  const cameraTotals = new Map(); // camera_id -> total count
+
+  events.forEach((event) => {
+    if (!event.timestamp) return;
+
+    const raw = event.timestamp;
+    const normalized = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
+    const d = new Date(normalized);
+    if (Number.isNaN(d.getTime())) return;
+
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hour = String(d.getHours()).padStart(2, "0");
+
+    const key = `${year}-${month}-${day} ${hour}`; // sort key
+    const label = `${hour}:00`;
+
+    const cameraId = event.camera_id || "Unknown";
+
+    if (!bucketMap.has(key)) {
+      bucketMap.set(key, {
+        key,
+        label,
+        total: 0,
+        perCamera: {},
+      });
+    }
+
+    const bucket = bucketMap.get(key);
+    bucket.total += 1;
+    bucket.perCamera[cameraId] = (bucket.perCamera[cameraId] || 0) + 1;
+
+    cameraTotals.set(cameraId, (cameraTotals.get(cameraId) || 0) + 1);
+  });
+
+  const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) =>
+    a.key.localeCompare(b.key)
+  );
+
+  // 2) Events over time (tower bar chart) – total events per hour
+  const eventsOverTimeData = sortedBuckets.map((bucket) => ({
+    label: bucket.label,
+    total: bucket.total,
+  }));
+
+  // 3) Events per camera over time – multi-series area chart
+  // Pick top N cameras so chart doesn't get insane
+  const TOP_CAMERAS = 4;
+  const topCameraIds = Array.from(cameraTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, TOP_CAMERAS)
+    .map(([id]) => id);
+
+  const eventsPerCameraData = sortedBuckets.map((bucket) => {
+    const row = { label: bucket.label };
+    topCameraIds.forEach((camId) => {
+      row[camId] = bucket.perCamera[camId] || 0;
+    });
+    return row;
+  });
+
   return (
-    <div className="space-y-6 animate-[fadeIn_0.5s_ease-in]">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-xl rounded-xl p-8 border border-slate-700/50 shadow-2xl shadow-cyan-500/5 hover:shadow-cyan-500/10 transition-all duration-300">
-        <h1 className="text-3xl font-bold text-white mb-2 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-          Smart Campus CCTV Monitoring
-        </h1>
-        <p className="text-slate-400 text-lg">
-          Real-time AI-assisted surveillance dashboard
-        </p>
+    <div className="space-y-5">
+      {/* Small breadcrumb label */}
+      <div>
+        <p className="text-sm font-medium text-[#9CA3AF] mb-1">Dashboard</p>
       </div>
 
-      {/* Error Banner */}
+      {/* Compact hero / header bar */}
+      <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] px-6 py-4 flex items-center justify-between gap-4 glow-hover">
+        <div>
+          <div className="inline-flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[#1F2430] bg-[#050814] text-[11px] font-medium text-[#9CA3AF] uppercase tracking-wide">
+              Overview
+            </span>
+          </div>
+          <h2 className="text-xl font-semibold text-[#E5E7EB]">
+            Smart Campus CCTV Monitoring
+          </h2>
+          <p className="text-xs text-[#9CA3AF] mt-1">
+            Real-time AI-assisted surveillance for your campus perimeter,
+            corridors and common areas.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-1 text-xs">
+          <span
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${
+              wsStatus === "connected"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                : "border-[#374151] bg-[#111827] text-[#9CA3AF]"
+            } font-medium`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                wsStatus === "connected" ? "bg-emerald-400" : "bg-[#6B7280]"
+              } animate-pulse`}
+            />
+            {wsStatus === "connected"
+              ? "Live monitoring (WebSocket)"
+              : "Waiting for live feed"}
+          </span>
+          <span className="text-[#9CA3AF]">
+            Latest events stream in{" "}
+            <span className="font-semibold">instantly</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Error banner */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3 shadow-lg shadow-red-500/10 backdrop-blur-sm animate-[slideDown_0.3s_ease-out]">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
           <div>
             <h3 className="text-red-400 font-medium">Connection Error</h3>
@@ -114,58 +301,68 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stat cards row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Events"
           value={stats.totalEvents}
-          icon={<Activity className="w-6 h-6" />}
-          color="cyan"
+          icon={Activity}
         />
         <StatCard
           title="Active Cameras"
           value={stats.uniqueCameras}
-          icon={<Camera className="w-6 h-6" />}
-          color="blue"
+          icon={Camera}
         />
         <StatCard
           title="Intrusion Alerts"
           value={stats.intrusionEvents}
-          icon={<AlertCircle className="w-6 h-6" />}
-          color="red"
+          icon={AlertCircle}
+          accent="red"
         />
         <StatCard
           title="Last Event"
           value={formatEventTime(stats.lastEventTime)}
-          icon={<Clock className="w-6 h-6" />}
-          color="emerald"
+          icon={Clock}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Events Table */}
+      {/* 📊 Analytics row – swapped charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* LEFT: tower bars */}
+        <EventsOverTimeChart data={eventsOverTimeData} />
+
+        {/* RIGHT: multi-series per camera */}
+        <EventsPerCameraChart
+          data={eventsPerCameraData}
+          cameraIds={topCameraIds}
+        />
+      </div>
+
+      {/* Main grid: events table + insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Events table */}
         <div className="lg:col-span-2">
-          <div className="bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-800/50 overflow-hidden shadow-2xl shadow-slate-950/20 hover:shadow-slate-950/40 transition-all duration-300">
-            <div className="p-6 border-b border-slate-800/50 bg-gradient-to-r from-slate-900/50 to-slate-800/50">
-              <h2 className="text-xl font-semibold text-white mb-4">
+          <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] overflow-hidden glow-hover">
+            <div className="p-4 border-b border-[#1F2430]">
+              <h2 className="text-lg font-semibold text-[#E5E7EB] mb-3">
                 Security Events Timeline
               </h2>
 
               <div className="flex flex-col sm:flex-row gap-3">
                 {/* Search */}
-                <div className="flex-1 relative group">
-                  <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+                <div className="flex-1 relative group glow-focus">
+                  <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
                   <input
                     type="text"
                     placeholder="Search by camera or description..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-800/70 backdrop-blur-sm border border-slate-700/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 focus:bg-slate-800 transition-all duration-200"
+                    className="w-full pl-10 pr-10 py-2.5 bg-[#0B0F14] border border-[#1F2430] rounded-lg text-[#E5E7EB] placeholder-[#6B7280] focus:outline-none focus:ring-0"
                   />
                   {searchTerm && (
                     <button
                       onClick={() => setSearchTerm("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-all duration-200 hover:scale-110"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#E5E7EB] transition"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -173,12 +370,12 @@ const Dashboard = () => {
                 </div>
 
                 {/* Filter */}
-                <div className="relative group">
-                  <Filter className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+                <div className="relative group glow-focus">
+                  <Filter className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
                   <select
                     value={eventTypeFilter}
                     onChange={(e) => setEventTypeFilter(e.target.value)}
-                    className="pl-10 pr-8 py-2.5 bg-slate-800/70 backdrop-blur-sm border border-slate-700/50 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 focus:bg-slate-800 transition-all duration-200 appearance-none cursor-pointer hover:border-slate-600"
+                    className="pl-10 pr-8 py-2.5 bg-[#0B0F14] border border-[#1F2430] rounded-lg text-[#E5E7EB] focus:outline-none focus:ring-0 appearance-none cursor-pointer"
                   >
                     {eventTypes.map((type) => (
                       <option key={type} value={type}>
@@ -194,19 +391,19 @@ const Dashboard = () => {
 
             <div className="overflow-x-auto max-h-[600px]">
               {loading ? (
-                <div className="p-12 text-center">
-                  <div className="inline-block w-8 h-8 border-4 border-slate-700 border-t-cyan-500 rounded-full animate-spin"></div>
-                  <p className="text-slate-400 mt-4">Loading events...</p>
+                <div className="p-10 text-center">
+                  <div className="inline-block w-8 h-8 border-4 border-[#1F2430] border-t-cyan-500 rounded-full animate-spin" />
+                  <p className="text-[#9CA3AF] mt-4">Loading events...</p>
                 </div>
               ) : filteredEvents.length === 0 ? (
-                <div className="p-12 text-center">
-                  <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400">No events found</p>
+                <div className="p-10 text-center">
+                  <AlertCircle className="w-12 h-12 text-[#4B5563] mx-auto mb-3" />
+                  <p className="text-[#9CA3AF]">No events found</p>
                 </div>
               ) : (
                 <div className="relative">
                   <table className="w-full">
-                    <thead className="bg-slate-800/70 backdrop-blur-sm text-slate-400 text-sm sticky top-0 z-10 shadow-md">
+                    <thead className="bg-[#0B0F14] text-[#9CA3AF] text-sm sticky top-0 z-10">
                       <tr>
                         <th className="px-6 py-3 text-left font-medium">
                           Time
@@ -228,59 +425,56 @@ const Dashboard = () => {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/50">
-                      {filteredEvents.map((event, index) => (
+                    <tbody className="divide-y divide-[#1F2430]">
+                      {filteredEvents.map((event) => (
                         <tr
                           key={event.id}
-                          className="hover:bg-slate-800/40 transition-all duration-200 group animate-[fadeIn_0.3s_ease-in]"
-                          style={{ animationDelay: `${index * 0.03}s` }}
+                          className="bg-[#0B0F14] hover:bg-[#101623] transition-colors"
                         >
-                          <td className="px-6 py-4 text-sm text-slate-300 group-hover:text-white transition-colors">
+                          <td className="px-6 py-3 text-sm text-[#E5E7EB]">
                             {formatEventTime(event.timestamp)}
                           </td>
-
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-medium text-white">
+                          <td className="px-6 py-3">
+                            <span className="text-sm font-medium text-[#E5E7EB]">
                               {event.camera_id}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-3">
                             <EventBadge type={event.event_type} />
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-3">
                             {event.confidence ? (
-                              <span className="text-sm text-slate-300 group-hover:text-white transition-colors">
+                              <span className="text-sm text-[#E5E7EB]">
                                 {(event.confidence * 100).toFixed(1)}%
                               </span>
                             ) : (
-                              <span className="text-sm text-slate-500">-</span>
+                              <span className="text-sm text-[#6B7280]">-</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-sm text-slate-300 max-w-xs truncate group-hover:text-white transition-colors">
+                          <td className="px-6 py-3 text-sm text-[#E5E7EB] max-w-xs truncate">
                             {event.description || "-"}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-3">
                             <div className="flex items-center gap-3">
                               {event.image_path ? (
                                 <a
                                   href={`http://127.0.0.1:8000/${event.image_path}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-all duration-200 hover:scale-105 inline-block"
+                                  className="text-[#3B82F6] hover:text-[#60A5FA] text-sm font-medium"
                                 >
                                   Snapshot
                                 </a>
                               ) : (
-                                <span className="text-slate-500 text-sm">
+                                <span className="text-[#6B7280] text-sm">
                                   -
                                 </span>
                               )}
-
                               <button
                                 onClick={() =>
                                   navigate(`/live?camera=${event.camera_id}`)
                                 }
-                                className="text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-all duration-200 hover:scale-105"
+                                className="text-[#22C55E] hover:text-[#4ADE80] text-sm font-medium"
                               >
                                 View Live
                               </button>
@@ -297,31 +491,28 @@ const Dashboard = () => {
         </div>
 
         {/* Live Security Insights */}
-        <div className="bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-800/50 p-6 h-fit shadow-2xl shadow-slate-950/20 hover:shadow-slate-950/40 transition-all duration-300">
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-cyan-400 animate-pulse" />
+        <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-4 h-fit glow-hover">
+          <h2 className="text-lg font-semibold text-[#E5E7EB] mb-3 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-cyan-400" />
             Live Security Insights
           </h2>
-          <div className="space-y-3">
-            {events.slice(0, 5).map((event, index) => (
+          <div className="space-y-2">
+            {events.slice(0, 5).map((event) => (
               <div
                 key={event.id}
-                className="p-4 bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700/50 hover:border-slate-600 hover:bg-slate-800/70 hover:shadow-lg hover:shadow-slate-950/20 transition-all duration-200 hover:scale-[1.02] cursor-pointer animate-[fadeIn_0.4s_ease-in] group"
-                style={{ animationDelay: `${index * 0.1}s` }}
+                className="p-4 bg-[#0B0F14] rounded-lg border border-[#1F2430] glow-hover cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-2">
                   <EventBadge type={event.event_type} size="sm" />
-                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors">
+                  <span className="text-xs text-[#9CA3AF]">
                     {formatEventTime(event.timestamp)}
                   </span>
                 </div>
-                <p className="text-sm text-slate-300 mb-1">
-                  <span className="font-medium text-white">
-                    {event.camera_id}
-                  </span>
+                <p className="text-sm text-[#E5E7EB] mb-1">
+                  <span className="font-medium">{event.camera_id}</span>
                 </p>
                 {event.description && (
-                  <p className="text-xs text-slate-400 line-clamp-2 group-hover:text-slate-300 transition-colors">
+                  <p className="text-xs text-[#9CA3AF] line-clamp-2">
                     {event.description}
                   </p>
                 )}
@@ -334,72 +525,171 @@ const Dashboard = () => {
   );
 };
 
-const StatCard = ({ title, value, icon, color }) => {
-  const colorClasses = {
-    cyan: "from-cyan-500 to-blue-500",
-    blue: "from-blue-500 to-indigo-500",
-    red: "from-red-500 to-pink-500",
-    emerald: "from-emerald-500 to-teal-500",
-  };
-
-  const shadowClasses = {
-    cyan: "shadow-cyan-500/20 group-hover:shadow-cyan-500/40",
-    blue: "shadow-blue-500/20 group-hover:shadow-blue-500/40",
-    red: "shadow-red-500/20 group-hover:shadow-red-500/40",
-    emerald: "shadow-emerald-500/20 group-hover:shadow-emerald-500/40",
-  };
+/** Flatter stat card with larger icon badge */
+const StatCard = ({ title, value, icon: Icon, accent = "blue" }) => {
+  const accentColor =
+    accent === "green"
+      ? "bg-emerald-500/15 text-emerald-400"
+      : accent === "red"
+      ? "bg-red-500/15 text-red-400"
+      : "bg-blue-500/15 text-blue-400";
 
   return (
-    <div className="bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-800/50 p-6 hover:border-slate-700 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-slate-950/30 cursor-pointer group">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-slate-400 text-sm font-medium mb-2 group-hover:text-slate-300 transition-colors">
-            {title}
-          </p>
-          <p className="text-3xl font-bold text-white group-hover:scale-105 transition-transform origin-left">
-            {value}
-          </p>
-        </div>
-        <div
-          className={`w-12 h-12 bg-gradient-to-br ${colorClasses[color]} rounded-lg flex items-center justify-center shadow-lg ${shadowClasses[color]} transition-all duration-300 group-hover:scale-110 group-hover:rotate-3`}
-        >
-          {icon}
-        </div>
+    <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-5 flex items-center justify-between glow-hover">
+      <div>
+        <p className="text-sm font-medium text-[#9CA3AF] mb-1">{title}</p>
+        <span className="text-3xl font-bold text-[#E5E7EB]">{value}</span>
+      </div>
+
+      <div
+        className={`w-11 h-11 flex items-center justify-center rounded-lg ${accentColor}`}
+      >
+        <Icon className="w-5 h-5" />
       </div>
     </div>
   );
 };
 
+/* ---------- Charts ---------- */
+
+// LEFT: tower-style bars (total events per hour)
+const EventsOverTimeChart = ({ data }) => (
+  <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-4 glow-hover">
+    <div className="flex items-center justify-between mb-2">
+      <h3 className="text-sm font-semibold text-[#E5E7EB]">
+        Events over time
+      </h3>
+      <span className="text-[11px] text-[#6B7280]">By hour</span>
+    </div>
+
+    {data.length === 0 ? (
+      <p className="text-xs text-[#6B7280] mt-6">Not enough data yet.</p>
+    ) : (
+      <div className="mt-2">
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart
+            data={data}
+            margin={{ top: 10, right: 16, left: -20, bottom: 0 }}
+          >
+            <CartesianGrid stroke="#111827" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#6B7280", fontSize: 11 }}
+              tickFormatter={formatHourToAMPM}
+            />
+            <YAxis
+              tick={{ fill: "#6B7280", fontSize: 11 }}
+              allowDecimals={false}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#020617",
+                border: "1px solid #1F2430",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+            />
+            <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )}
+  </div>
+);
+
+// RIGHT: multi-series per camera over time
+const EventsPerCameraChart = ({ data, cameraIds }) => {
+  const colors = ["#60a5fa", "#22c55e", "#a855f7", "#f97316"];
+
+  return (
+    <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-4 glow-hover">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-[#E5E7EB]">
+          Events per camera
+        </h3>
+        <span className="text-[11px] text-[#6B7280]">
+          Top cameras · by hour
+        </span>
+      </div>
+
+      {data.length === 0 || cameraIds.length === 0 ? (
+        <p className="text-xs text-[#6B7280] mt-6">No camera activity yet.</p>
+      ) : (
+        <div className="mt-2">
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart
+              data={data}
+              margin={{ top: 10, right: 16, left: -20, bottom: 0 }}
+            >
+              <CartesianGrid stroke="#111827" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fill: "#6B7280", fontSize: 11 }}
+                tickFormatter={formatHourToAMPM}
+              />
+              <YAxis
+                tick={{ fill: "#6B7280", fontSize: 11 }}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#020617",
+                  border: "1px solid #1F2430",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+              />
+              {cameraIds.map((camId, idx) => (
+                <Area
+                  key={camId}
+                  type="monotone"
+                  dataKey={camId}
+                  name={camId}
+                  stroke={colors[idx % colors.length]}
+                  fill={colors[idx % colors.length]}
+                  fillOpacity={0.2}
+                  strokeWidth={2}
+                  activeDot={{ r: 4 }}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ---------- Badge ---------- */
+
 const EventBadge = ({ type, size = "md" }) => {
   const badges = {
     intrusion: {
-      color: "bg-red-500/10 text-red-400 border-red-500/30 shadow-red-500/10",
+      color: "bg-red-500/10 text-red-400 border-red-500/30",
       label: "Intrusion",
     },
     loitering: {
-      color:
-        "bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-amber-500/10",
+      color: "bg-amber-500/10 text-amber-400 border-amber-500/30",
       label: "Loitering",
     },
     crowd: {
-      color:
-        "bg-purple-500/10 text-purple-400 border-purple-500/30 shadow-purple-500/10",
+      color: "bg-purple-500/10 text-purple-400 border-purple-500/30",
       label: "Crowd",
     },
   };
 
   const badge = badges[type] || {
-    color:
-      "bg-slate-500/10 text-slate-400 border-slate-500/30 shadow-slate-500/10",
+    color: "bg-slate-500/10 text-slate-400 border-slate-500/30",
     label: type,
   };
+
   const sizeClass = size === "sm" ? "text-xs px-2 py-1" : "text-sm px-3 py-1";
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 ${sizeClass} rounded-full border font-medium ${badge.color} shadow-md hover:scale-105 transition-transform duration-200`}
+      className={`inline-flex items-center gap-1.5 ${sizeClass} rounded-full border font-medium ${badge.color}`}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+      <span className="w-1.5 h-1.5 rounded-full bg-current" />
       {badge.label}
     </span>
   );

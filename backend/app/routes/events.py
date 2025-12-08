@@ -1,12 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+# app/routes/events.py
+from typing import List, Dict, Any
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import List
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    status,
+    WebSocket,
+    WebSocketDisconnect,
+)
 
 from app.database import SessionLocal
 from app import models, schemas
 
+
 router = APIRouter()
 
+
+# --------------------------------------------------
+# DB dependency
+# --------------------------------------------------
 def get_db():
     db = SessionLocal()
     try:
@@ -14,8 +29,43 @@ def get_db():
     finally:
         db.close()
 
+
+# --------------------------------------------------
+# WebSocket connection manager
+# --------------------------------------------------
+class ConnectionManager:
+    def __init__(self) -> None:
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: Dict[str, Any]) -> None:
+        for ws in list(self.active_connections):
+            try:
+                await ws.send_json(message)
+            except Exception:
+                # drop dead connections
+                self.disconnect(ws)
+
+
+manager = ConnectionManager()
+
+
+# --------------------------------------------------
+# HTTP endpoints
+# --------------------------------------------------
+
 @router.get("/", response_model=List[schemas.EventRead])
 def list_events(limit: int = 50, db: Session = Depends(get_db)):
+    """
+    Return latest events (newest first).
+    """
     events = (
         db.query(models.Event)
         .order_by(models.Event.timestamp.desc())
@@ -24,9 +74,13 @@ def list_events(limit: int = 50, db: Session = Depends(get_db)):
     )
     return events
 
+
 @router.post("/", response_model=schemas.EventRead, status_code=status.HTTP_201_CREATED)
-def create_event(event_in: schemas.EventCreate, db: Session = Depends(get_db)):
-    """Create a new security event (used by detector/YOLO script)."""
+async def create_event(event_in: schemas.EventCreate, db: Session = Depends(get_db)):
+    """
+    Create a new security event (YOLO/detector uses this),
+    then broadcast it over WebSocket.
+    """
     event = models.Event(
         camera_id=event_in.camera_id,
         event_type=event_in.event_type,
@@ -37,4 +91,56 @@ def create_event(event_in: schemas.EventCreate, db: Session = Depends(get_db)):
     db.add(event)
     db.commit()
     db.refresh(event)
+
+    payload = schemas.EventRead.from_attributes(event).model_dump()
+    await manager.broadcast({"type": "new_event", "event": payload})
+
     return event
+
+
+@router.get("/stats", response_model=schemas.EventStats)
+def get_event_stats(db: Session = Depends(get_db)):
+    """
+    Aggregate stats for dashboard cards.
+    """
+    total_events = db.query(func.count(models.Event.id)).scalar() or 0
+
+    intrusion_events = (
+        db.query(func.count(models.Event.id))
+        .filter(models.Event.event_type == "intrusion")
+        .scalar()
+        or 0
+    )
+
+    last_event = (
+        db.query(models.Event.timestamp)
+        .order_by(models.Event.timestamp.desc())
+        .first()
+    )
+    last_event_time = last_event[0] if last_event else None
+
+    return schemas.EventStats(
+        total_events=total_events,
+        intrusion_events=intrusion_events,
+        last_event_time=last_event_time,
+    )
+
+
+# --------------------------------------------------
+# WebSocket endpoint
+# --------------------------------------------------
+
+@router.websocket("/ws")
+async def events_ws(websocket: WebSocket):
+    """
+    Live events WebSocket:
+    ws://127.0.0.1:8000/api/events/ws
+    """
+    await manager.connect(websocket)
+    try:
+        # We don't expect messages from the client;
+        # just keep the connection open.
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)

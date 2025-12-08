@@ -5,8 +5,11 @@
    ========================================= */
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background-color: #f3f4f6; /* Light gray background */
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Match your app background (dark dashboard) */
+  background-color: #020617; /* close to slate-950 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -15,18 +18,35 @@ body {
    CUSTOM ANIMATIONS
    ========================================= */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes pulse-red {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* =========================================
@@ -44,6 +64,38 @@ body {
   animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* ====== MUI-style hover glow / focus ring ====== */
+
+/* Soft hover glow for cards, rows, nav items */
+.glow-hover {
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    transform 0.15s ease;
+}
+
+.glow-hover:hover {
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.45), /* thin blue outline */
+    0 0 22px rgba(59, 130, 246, 0.2);   /* soft outer glow */
+  border-color: rgba(59, 130, 246, 0.55);
+}
+
+/* Input/card focus ring (e.g. search, dropdowns) */
+.glow-focus {
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.glow-focus:focus-within {
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.6),
+    0 0 24px rgba(59, 130, 246, 0.28);
+  border-color: rgba(59, 130, 246, 0.7);
+}
+
 /* =========================================
    CUSTOM SCROLLBAR (Stealth Mode)
    ========================================= */
@@ -56,23 +108,23 @@ body {
 
 /* 2. Track (The background of the bar) -> MAKE THIS TRANSPARENT */
 ::-webkit-scrollbar-track {
-  background: transparent; 
+  background: transparent;
 }
 
 /* 3. Thumb (The moving part) -> Dark Gray with rounded corners */
 ::-webkit-scrollbar-thumb {
-  background-color: #4b5563; /* Subtle dark gray (Tailwind gray-600) */
-  border-radius: 20px;       /* Makes it round like a pill */
-  border: 2px solid transparent; /* Adds space around it so it floats */
-  background-clip: content-box;  /* Ensures the border works */
+  background-color: #4b5563; /* gray-600 */
+  border-radius: 20px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 /* 4. Hover State -> Slightly lighter when you grab it */
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #6b7280; /* Tailwind gray-500 */
+  background-color: #6b7280; /* gray-500 */
 }
 
-/* 5. Firefox Support (Since Firefox doesn't use -webkit-) */
+/* 5. Firefox Support */
 html {
   scrollbar-width: thin;
   scrollbar-color: #4b5563 transparent;

@@ -32,8 +32,8 @@ def set_stop_event(e: threading.Event):
 # ==========================================
 CONFIDENCE_THRESHOLD = 0.4
 FRAME_SKIP = 3  # Run AI every N frames
-STREAM_RESOLUTION = (960, 540) 
-EVENT_COOLDOWN = 15.0 # Seconds between database logs
+STREAM_RESOLUTION = (960, 540)
+EVENT_COOLDOWN = 15.0  # Seconds between database logs
 
 # Colors (B, G, R)
 COLOR_RED = (0, 0, 255)    # Threat/Phone
@@ -53,14 +53,16 @@ last_event_time: Dict[str, float] = {}
 # ==========================================
 print("🔁 Loading YOLOv8 model (yolov8n.pt)...")
 try:
-    model = YOLO("yolov8n.pt") 
+    model = YOLO("yolov8n.pt")
     print("✅ YOLOv8 model loaded successfully.")
-    
+
     PHONE_CLASS_IDS = [id for id, name in model.names.items() if "phone" in str(name).lower()]
     PERSON_CLASS_IDS = [id for id, name in model.names.items() if "person" in str(name).lower()]
 except Exception as e:
     print(f"🔥 Error loading model: {e}")
     model = None
+    PHONE_CLASS_IDS = []
+    PERSON_CLASS_IDS = []
 
 # ==========================================
 # 🛠️ HELPER FUNCTIONS
@@ -82,11 +84,19 @@ def create_error_frame(message: str):
 # 🎥 STREAM GENERATOR
 # ==========================================
 def generate_stream(camera_id: str, db: Session):
+    """
+    Stream a single camera. This loop now *re-checks* the camera's is_active flag,
+    so if you toggle a camera off in the UI, the running stream will exit cleanly.
+    """
     global last_event_time
     camera_id = camera_id.strip()
 
-    # 1. Database Lookup
-    cam = db.query(models.Camera).filter(models.Camera.camera_id == camera_id).first()
+    # 1. Initial database lookup
+    cam = (
+        db.query(models.Camera)
+        .filter(models.Camera.camera_id == camera_id)
+        .first()
+    )
     if not cam or not cam.is_active:
         yield create_error_frame(f"OFFLINE: {camera_id}")
         return
@@ -100,8 +110,8 @@ def generate_stream(camera_id: str, db: Session):
         return
 
     frame_count = 0
-    cached_boxes = [] 
-    
+    cached_boxes = []
+
     # Track stats for the current frame
     current_person_count = 0
     current_phone_count = 0
@@ -110,42 +120,54 @@ def generate_stream(camera_id: str, db: Session):
 
     try:
         while True:
-            # 🛑 CHECK FOR SERVER SHUTDOWN (Ctrl+C)
+            # 🛑 1) CHECK FOR SERVER SHUTDOWN (Ctrl+C)
             if server_stop_event and server_stop_event.is_set():
                 print(f"🛑 Shutdown signal received. Closing stream for {camera_id}")
                 break
 
+            # 🛑 2) CHECK CAMERA ACTIVE FLAG (so toggle works on already-open streams)
+            #    We re-query only a small column; cheap but effective.
+            cam_state = (
+                db.query(models.Camera.is_active)
+                .filter(models.Camera.camera_id == camera_id)
+                .first()
+            )
+            if not cam_state or not cam_state[0]:
+                print(f"🚫 Camera {camera_id} disabled in UI – stopping its stream.")
+                break
+
             success, frame = cap.read()
             if not success:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0) # Loop video
+                # If this is a file / flaky stream, you can loop it
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 continue
 
             frame = cv2.resize(frame, STREAM_RESOLUTION)
             frame_count += 1
 
             # ---------------------------------------------------------
-            # 1. AI INFERENCE (Runs periodically)
+            # 3. AI INFERENCE (Runs periodically)
             # ---------------------------------------------------------
             if model and (frame_count % FRAME_SKIP == 0):
-                cached_boxes = [] 
+                cached_boxes = []
                 current_person_count = 0
                 current_phone_count = 0
                 current_best_conf = 0.0
                 current_anomaly = None
-                
+
                 results = model(frame, conf=CONFIDENCE_THRESHOLD, verbose=False)
 
                 for r in results:
                     for box in r.boxes:
                         cls_id = int(box.cls[0])
                         conf = float(box.conf[0])
-                        
+
                         is_phone = cls_id in PHONE_CLASS_IDS
                         is_person = cls_id in PERSON_CLASS_IDS
-                        
+
                         if is_phone or is_person:
                             x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            
+
                             if is_phone:
                                 color = COLOR_RED
                                 label = f"Phone {conf:.2f}"
@@ -158,72 +180,71 @@ def generate_stream(camera_id: str, db: Session):
                                 current_best_conf = max(current_best_conf, conf)
 
                             cached_boxes.append((x1, y1, x2, y2, color, label))
-                
-                # Determine Event Type
+
+                # Determine event type
                 if current_phone_count > 0:
                     current_anomaly = "mobile_phone"
                 elif current_person_count > 0:
                     current_anomaly = "intrusion"
 
             # ---------------------------------------------------------
-            # 2. DRAW BOXES (Must happen BEFORE saving)
+            # 4. DRAW BOXES
             # ---------------------------------------------------------
             for (x1, y1, x2, y2, color, label) in cached_boxes:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                # Text background
                 t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
                 cv2.rectangle(frame, (x1, y1 - 20), (x1 + t_size[0], y1), color, -1)
                 cv2.putText(frame, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_TEXT, 2)
 
             # ---------------------------------------------------------
-            # 3. SAVE SNAPSHOT (Now includes the boxes!)
+            # 5. SAVE SNAPSHOT (only when anomaly + cooldown)
             # ---------------------------------------------------------
             now = time.time()
             last_time = last_event_time.get(camera_id, 0.0)
 
-            # Only save if we just ran AI (frame_count matches) AND found an anomaly AND cooldown passed
             if (frame_count % FRAME_SKIP == 0) and current_anomaly and (now - last_time > EVENT_COOLDOWN):
-                
                 filename = f"{camera_id}_{int(now)}.jpg"
                 save_path = MEDIA_DIR / filename
-                
-                # SAVE THE ANNOTATED FRAME
+
+                # save annotated frame
                 cv2.imwrite(str(save_path), frame)
-                
-                # Log to DB
+
                 new_event = models.Event(
                     camera_id=camera_id,
                     event_type=current_anomaly,
                     confidence=current_best_conf,
                     description=f"Detected: {current_person_count} Persons, {current_phone_count} Phones",
-                    image_path=f"media/{filename}"
+                    image_path=f"media/{filename}",
                 )
                 db.add(new_event)
                 db.commit()
-                
+
                 last_event_time[camera_id] = now
                 print(f"📸 Snapshot saved with boxes: {filename}")
 
             # ---------------------------------------------------------
-            # 4. STREAM TO BROWSER
+            # 6. STREAM TO BROWSER
             # ---------------------------------------------------------
-            # HUD Info
             info = f"Cam: {camera_id} | Persons: {current_person_count} | Phones: {current_phone_count}"
             cv2.putText(frame, info, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, COLOR_GREEN, 2)
 
             ret, buffer = cv2.imencode(".jpg", frame)
             if not ret:
                 continue
-            
-            # YIELD WITH ERROR HANDLING
+
             try:
-                yield (b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" +
+                    buffer.tobytes() +
+                    b"\r\n"
+                )
             except GeneratorExit:
-                # This triggers when the client (browser) closes the tab
+                # Client closed tab
                 print(f"👋 Client disconnected from {camera_id}")
                 break
             except Exception:
-                # This triggers if the stream pipe breaks
+                # Pipe broke
                 break
 
     except Exception as e:
@@ -241,5 +262,5 @@ def generate_stream(camera_id: str, db: Session):
 def video_stream_endpoint(camera_id: str, db: Session = Depends(get_db)):
     return StreamingResponse(
         generate_stream(camera_id, db),
-        media_type="multipart/x-mixed-replace; boundary=frame"
+        media_type="multipart/x-mixed-replace; boundary=frame",
     )

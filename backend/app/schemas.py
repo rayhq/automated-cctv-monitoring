@@ -1,21 +1,24 @@
 # app/schemas.py
 from datetime import datetime
-from pydantic import BaseModel
 from typing import Optional
 
+from pydantic import BaseModel
 
-# ---------- AUTH / USER ----------
+
+# =====================
+# User / Auth
+# =====================
 
 class UserBase(BaseModel):
     username: str
-    full_name: str | None = None
+    full_name: Optional[str] = None
     is_active: bool = True
     is_admin: bool = False
 
 
 class UserCreate(BaseModel):
     username: str
-    full_name: str | None = None
+    full_name: Optional[str] = None
     password: str
 
 
@@ -23,7 +26,7 @@ class UserRead(UserBase):
     id: int
 
     class Config:
-        from_attributes = True  # Pydantic v2 replacement of orm_mode
+        from_attributes = True  # Pydantic v2 replacement for orm_mode
 
 
 class LoginRequest(BaseModel):
@@ -37,9 +40,8 @@ class Token(BaseModel):
 
 
 # =====================
-# Event Schemas
+# Events
 # =====================
-
 
 class EventBase(BaseModel):
     camera_id: str
@@ -48,18 +50,28 @@ class EventBase(BaseModel):
     description: Optional[str] = None
     image_path: Optional[str] = None
 
+
 class EventCreate(EventBase):
-    pass  # same fields when creating
+    # same fields as base when creating
+    pass
+
 
 class EventRead(EventBase):
     id: int
     timestamp: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # IMPORTANT for SQLAlchemy -> Pydantic
+
+
+class EventStats(BaseModel):
+    total_events: int
+    intrusion_events: int
+    last_event_time: Optional[datetime] = None
+
 
 # =====================
-# Camera Schemas
+# Cameras
 # =====================
 
 class CameraBase(BaseModel):
@@ -78,4 +90,4 @@ class CameraRead(CameraBase):
     id: int
 
     class Config:
-        from_attributes = True  # Pydantic v2 replacement for orm_mode
+        from_attributes = True
