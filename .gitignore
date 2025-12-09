@@ -52,7 +52,9 @@ backend/cctv.db
 *.weights
 
 # Runtime data (do NOT commit)
-backend/media/
+backend/app/media
+backend/media
+
 backend/samples/
 
 ##################################
