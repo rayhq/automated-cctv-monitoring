@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, constr
 
 
 # =====================
@@ -37,6 +37,12 @@ class LoginRequest(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+# ✅ NEW: Change Password Schema
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: constr(min_length=8)  # require at least 8 chars
 
 
 # =====================

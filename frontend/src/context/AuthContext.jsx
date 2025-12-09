@@ -13,15 +13,17 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
 
-  // Restore from token on page refresh
+  // ✅ Restore session from token on page refresh
   useEffect(() => {
     const token = localStorage.getItem("token");
+
     if (!token) {
       setInitializing(false);
       return;
     }
 
-    // TODO: if you add /me endpoint, call it here.
+    // ✅ Since backend doesn't have /me yet,
+    // we reconstruct a basic admin user locally
     setUser({
       username: "admin",
       full_name: "Admin",
@@ -31,25 +33,26 @@ export const AuthProvider = ({ children }) => {
     setInitializing(false);
   }, []);
 
+  // ✅ FIXED LOGIN (no data.user usage anymore)
   const login = async (username, password) => {
-    const data = await api.login(username, password);
+    // This throws if credentials are invalid
+    await api.login(username, password);
 
-    const userFromApi = data.user ?? {
-      username,
+    // Create a local user object after successful login
+    setUser({
+      username: username,
       full_name: username,
       is_admin: true,
-    };
-
-    setUser(userFromApi);
+    });
   };
 
+  // ✅ LOGOUT (token + state cleared)
   const logout = async () => {
     try {
       await api.logout();
     } catch (e) {
       console.error("Logout error (ignored):", e);
     } finally {
-      // ✅ THIS is what really logs you out
       localStorage.removeItem("token");
       setUser(null);
     }
@@ -59,7 +62,13 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated, initializing, login, logout }}
+      value={{
+        user,
+        isAuthenticated,
+        initializing,
+        login,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

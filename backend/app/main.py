@@ -8,8 +8,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
 from app import models
-from app.routes import auth, events, cameras, video
+from app.routes import auth, events, cameras, video, admin
 from app.websockets import manager  # 🔴 NEW: websocket connection manager
+
 
 
 # ---------------------------------------------------------
@@ -74,6 +75,7 @@ app.include_router(auth.router)
 app.include_router(events.router, prefix="/api/events", tags=["Events"])
 app.include_router(cameras.router, prefix="/api/cameras", tags=["Cameras"])
 app.include_router(video.router, tags=["Video"])
+app.include_router(admin.router)
 
 
 # ---------------------------------------------------------

@@ -18,26 +18,56 @@ export const api = {
       body: JSON.stringify({ username, password }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
+      // e.g. { detail: "Incorrect username or password" }
       throw new Error(data.detail || "Login failed");
     }
 
-    // Save token for future requests
-    localStorage.setItem("token", data.access_token);
-    return data;
+    // ✅ Save JWT token for future requests
+    if (data.access_token) {
+      localStorage.setItem("token", data.access_token);
+    }
+
+    return data; // { access_token, token_type, ... }
   },
 
   async logout() {
-    // Clear token on logout
+    // Clear token locally
     localStorage.removeItem("token");
 
-    // Hit backend logout (optional, but fine to keep)
-    await fetch(`${API_BASE}/api/auth/logout`, {
+    // Optional: tell backend to clear cookies / session if used
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (err) {
+      console.error("Logout request failed (ignored):", err);
+    }
+  },
+
+  async changePassword(currentPassword, newPassword) {
+    const res = await fetch(`${API_BASE}/api/auth/change-password`, {
       method: "POST",
-      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
     });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.detail || "Failed to change password");
+    }
+
+    return data; // { detail: "Password updated successfully" }
   },
 
   // ---------- CAMERAS ----------
@@ -115,7 +145,7 @@ export const api = {
     return await res.json();
   },
 
-  // ✅ NEW: aggregated stats for the dashboard header
+  // aggregated stats for the dashboard header
   async fetchEventStats() {
     const res = await fetch(`${API_BASE}/api/events/stats`, {
       method: "GET",
@@ -134,6 +164,45 @@ export const api = {
     // expected shape:
     // { total_events, intrusion_events, last_event_time }
     return await res.json();
+  },
+
+  // ---------- ADMIN / DANGER ZONE ----------
+  // delete ONLY events (keep users + cameras)
+  async resetEvents() {
+    const res = await fetch(`${API_BASE}/api/admin/reset-events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.detail || "Failed to reset events");
+    }
+
+    return data;
+  },
+
+  // full DB reset: drops and recreates tables (users, cameras, events)
+  async resetEverything() {
+    const res = await fetch(`${API_BASE}/api/admin/reset-everything`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.detail || "Full database reset failed");
+    }
+
+    return data;
   },
 
   // ---------- SYSTEM HEALTH ----------
