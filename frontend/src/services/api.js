@@ -21,23 +21,20 @@ export const api = {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      // e.g. { detail: "Incorrect username or password" }
       throw new Error(data.detail || "Login failed");
     }
 
-    // ✅ Save JWT token for future requests
+    // ✅ Save JWT token
     if (data.access_token) {
       localStorage.setItem("token", data.access_token);
     }
 
-    return data; // { access_token, token_type, ... }
+    return data;
   },
 
   async logout() {
-    // Clear token locally
     localStorage.removeItem("token");
 
-    // Optional: tell backend to clear cookies / session if used
     try {
       await fetch(`${API_BASE}/api/auth/logout`, {
         method: "POST",
@@ -70,6 +67,28 @@ export const api = {
     return data; // { detail: "Password updated successfully" }
   },
 
+  // 🔹 NEW: Fetch total user count (ADMIN ONLY)
+  async fetchUserCount() {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(`${API_BASE}/api/auth/user-count`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.error("User count error:", data);
+      throw new Error(data.detail || "Failed to fetch user count");
+    }
+
+    return data; // { total_users: number }
+  },
+
   // ---------- CAMERAS ----------
   async fetchCameras() {
     const res = await fetch(`${API_BASE}/api/cameras/`, {
@@ -77,6 +96,7 @@ export const api = {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     });
+
     if (!res.ok) throw new Error("Failed to load cameras");
     return res.json();
   },
@@ -90,10 +110,12 @@ export const api = {
       },
       body: JSON.stringify(payload),
     });
+
     if (!res.ok) {
       const text = await res.text();
       throw new Error(text || "Create failed");
     }
+
     return res.json();
   },
 
@@ -105,11 +127,13 @@ export const api = {
         "Content-Type": "application/json",
       },
     });
+
     if (!res.ok) {
       const text = await res.text();
       console.error("Toggle camera error:", res.status, text);
       throw new Error(text || "Toggle failed");
     }
+
     return res.json();
   },
 
@@ -120,14 +144,15 @@ export const api = {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     });
+
     if (!res.ok) throw new Error("Delete failed");
     return true;
   },
 
   // ---------- EVENTS ----------
-  // accept optional limit (defaults to 50)
   async fetchEvents(limit = 50) {
     const url = `${API_BASE}/api/events?limit=${encodeURIComponent(limit)}`;
+
     const res = await fetch(url, {
       method: "GET",
       headers: {
@@ -145,7 +170,6 @@ export const api = {
     return await res.json();
   },
 
-  // aggregated stats for the dashboard header
   async fetchEventStats() {
     const res = await fetch(`${API_BASE}/api/events/stats`, {
       method: "GET",
@@ -161,13 +185,10 @@ export const api = {
       throw new Error("Failed to fetch event stats");
     }
 
-    // expected shape:
-    // { total_events, intrusion_events, last_event_time }
     return await res.json();
   },
 
   // ---------- ADMIN / DANGER ZONE ----------
-  // delete ONLY events (keep users + cameras)
   async resetEvents() {
     const res = await fetch(`${API_BASE}/api/admin/reset-events`, {
       method: "POST",
@@ -186,7 +207,6 @@ export const api = {
     return data;
   },
 
-  // full DB reset: drops and recreates tables (users, cameras, events)
   async resetEverything() {
     const res = await fetch(`${API_BASE}/api/admin/reset-everything`, {
       method: "POST",

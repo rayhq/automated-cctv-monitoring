@@ -12,11 +12,10 @@ from sqlalchemy import (
 
 from app.database import Base
 
+
 # =========================
 # AUTH model
 # =========================
-
-
 class User(Base):
     __tablename__ = "users"
 
@@ -27,6 +26,11 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
 
+    # ✅ OTP reset fields (DEV MODE – OTP printed in logs)
+    otp_code_hash = Column(String, nullable=True)
+    otp_expires_at = Column(DateTime, nullable=True)
+    otp_attempts = Column(Integer, default=0)
+    otp_locked = Column(Boolean, default=False)
 
 
 # =========================

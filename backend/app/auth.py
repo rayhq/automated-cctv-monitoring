@@ -1,7 +1,7 @@
 # app/auth.py
 from datetime import datetime, timedelta
 from typing import Optional
-
+import secrets
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -94,3 +94,13 @@ def get_current_admin(
             detail="Admin privileges required",
         )
     return current_user
+
+
+OTP_LENGTH = 6
+OTP_EXP_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
+
+
+def generate_otp() -> str:
+    # zero-padded 6-digit code
+    return f"{secrets.randbelow(10**OTP_LENGTH):0{OTP_LENGTH}d}"

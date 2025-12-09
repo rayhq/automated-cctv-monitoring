@@ -10,6 +10,7 @@ import {
   Search,
   X,
   AlertTriangle,
+  Users,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -45,11 +46,9 @@ const formatEventTime = (isoString) => {
 
 // ✅ Helper: convert "HH:00" label to 12-hour AM/PM
 const formatHourToAMPM = (label) => {
-  // label like "19:00"
   if (!label) return "";
   const [h] = label.split(":");
   let hour = parseInt(h, 10);
-
   if (Number.isNaN(hour)) return label;
 
   const ampm = hour >= 12 ? "PM" : "AM";
@@ -67,23 +66,26 @@ const Dashboard = () => {
     lastEventTime: null,
     uniqueCameras: 0,
   });
+  const [activeUsers, setActiveUsers] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
-  const [wsStatus, setWsStatus] = useState("disconnected"); // "connected" | "disconnected"
+  const [wsStatus, setWsStatus] = useState("disconnected");
 
   const navigate = useNavigate();
 
-  // 1️⃣ Initial load from REST (events + stats)
+  // 1️⃣ Initial load from REST (events + stats + users)
   useEffect(() => {
     const loadInitial = async () => {
       try {
         setError(null);
 
-        const [eventsData, statsData] = await Promise.all([
-          api.fetchEvents(50), // latest 50 events
-          api.fetchEventStats(), // true totals from backend
+        const [eventsData, statsData, usersData] = await Promise.all([
+          api.fetchEvents(50),
+          api.fetchEventStats(),
+          api.fetchUserCount(),
         ]);
 
         setEvents(eventsData);
@@ -97,6 +99,7 @@ const Dashboard = () => {
           uniqueCameras,
         });
 
+        setActiveUsers(usersData?.total_users ?? 0);
         setLoading(false);
       } catch (err) {
         console.error("Failed to load dashboard data", err);
@@ -124,12 +127,10 @@ const Dashboard = () => {
           const newEvent = msg.event;
 
           setEvents((prev) => {
-            // Avoid duplicates if event already in list
             if (prev.some((ev) => ev.id === newEvent.id)) return prev;
 
             const updated = [newEvent, ...prev].slice(0, 100);
 
-            // Update stats in sync with the updated list
             setStats((prevStats) => ({
               ...prevStats,
               totalEvents: prevStats.totalEvents + 1,
@@ -175,12 +176,10 @@ const Dashboard = () => {
 
   // ============================================================
   // 📊 DATA FOR CHARTS
-  // We bucket events by hour, then use that for BOTH charts.
   // ============================================================
 
-  // 1) Bucket events by hour (key: "YYYY-MM-DD HH")
-  const bucketMap = new Map(); // key -> { key, label, total, perCamera: {cam: count} }
-  const cameraTotals = new Map(); // camera_id -> total count
+  const bucketMap = new Map();
+  const cameraTotals = new Map();
 
   events.forEach((event) => {
     if (!event.timestamp) return;
@@ -195,7 +194,7 @@ const Dashboard = () => {
     const day = String(d.getDate()).padStart(2, "0");
     const hour = String(d.getHours()).padStart(2, "0");
 
-    const key = `${year}-${month}-${day} ${hour}`; // sort key
+    const key = `${year}-${month}-${day} ${hour}`;
     const label = `${hour}:00`;
 
     const cameraId = event.camera_id || "Unknown";
@@ -220,14 +219,11 @@ const Dashboard = () => {
     a.key.localeCompare(b.key)
   );
 
-  // 2) Events over time (tower bar chart) – total events per hour
   const eventsOverTimeData = sortedBuckets.map((bucket) => ({
     label: bucket.label,
     total: bucket.total,
   }));
 
-  // 3) Events per camera over time – multi-series area chart
-  // Pick top N cameras so chart doesn't get insane
   const TOP_CAMERAS = 4;
   const topCameraIds = Array.from(cameraTotals.entries())
     .sort((a, b) => b[1] - a[1])
@@ -280,9 +276,20 @@ const Dashboard = () => {
               } animate-pulse`}
             />
             {wsStatus === "connected"
-              ? "Live monitoring (WebSocket)"
+              ? "Live monitoring"
               : "Waiting for live feed"}
           </span>
+
+          {/* tiny Active Users pill */}
+          {activeUsers != null && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#020617] border border-[#1F2430] text-[11px] text-[#9CA3AF]">
+              <Users className="w-3 h-3 text-cyan-300" />
+              <span>
+                {activeUsers} active user{activeUsers === 1 ? "" : "s"}
+              </span>
+            </span>
+          )}
+
           <span className="text-[#9CA3AF]">
             Latest events stream in{" "}
             <span className="font-semibold">instantly</span>
@@ -326,12 +333,9 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* 📊 Analytics row – swapped charts */}
+      {/* 📊 Analytics row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* LEFT: tower bars */}
         <EventsOverTimeChart data={eventsOverTimeData} />
-
-        {/* RIGHT: multi-series per camera */}
         <EventsPerCameraChart
           data={eventsPerCameraData}
           cameraIds={topCameraIds}
@@ -552,7 +556,6 @@ const StatCard = ({ title, value, icon: Icon, accent = "blue" }) => {
 
 /* ---------- Charts ---------- */
 
-// LEFT: tower-style bars (total events per hour)
 const EventsOverTimeChart = ({ data }) => (
   <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-4 glow-hover">
     <div className="flex items-center justify-between mb-2">
@@ -597,7 +600,6 @@ const EventsOverTimeChart = ({ data }) => (
   </div>
 );
 
-// RIGHT: multi-series per camera over time
 const EventsPerCameraChart = ({ data, cameraIds }) => {
   const colors = ["#60a5fa", "#22c55e", "#a855f7", "#f97316"];
 
@@ -659,8 +661,6 @@ const EventsPerCameraChart = ({ data, cameraIds }) => {
     </div>
   );
 };
-
-/* ---------- Badge ---------- */
 
 const EventBadge = ({ type, size = "md" }) => {
   const badges = {

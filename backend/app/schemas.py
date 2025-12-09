@@ -39,10 +39,21 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
-# ✅ NEW: Change Password Schema
+# ✅ Change Password Schema
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: constr(min_length=8)  # require at least 8 chars
+
+
+# ✅ OTP reset schemas (DEV MODE – OTP printed in backend)
+class OTPRequest(BaseModel):
+    identifier: str  # here: username
+
+
+class OTPReset(BaseModel):
+    identifier: str
+    otp: constr(min_length=4, max_length=8)  # type: ignore
+    new_password: constr(min_length=8)       # type: ignore
 
 
 # =====================

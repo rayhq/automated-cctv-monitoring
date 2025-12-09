@@ -11,14 +11,11 @@ import LiveView from "./pages/LiveView";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import EventsPage from "./pages/EventsPage";
-
-// 🚫 TURN THIS OFF when you want real auth
-const DEV_BYPASS_AUTH = false; // or just delete this flag
+import ForgotPassword from "./pages/ForgotPassword";
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
 
-  // no dev bypass anymore
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -30,13 +27,11 @@ function App() {
   return (
     <AuthProvider>
       <Routes>
-        {/* Public route */}
-        <Route
-          path="/login"
-          element={<LoginPage />}
-        />
+        {/* 🔓 Public routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* Protected routes */}
+        {/* 🔐 Protected routes (require login) */}
         <Route
           path="/"
           element={

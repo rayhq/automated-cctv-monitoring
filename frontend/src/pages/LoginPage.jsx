@@ -121,6 +121,7 @@ const LoginPage = () => {
                 <button
                   type="button"
                   className="text-slate-400 hover:text-slate-200 transition-colors"
+                  onClick={() => navigate("/forgot-password")} // ✅ add this
                 >
                   Forgot?
                 </button>

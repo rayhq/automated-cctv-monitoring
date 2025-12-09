@@ -1,4 +1,7 @@
 # app/routes/auth.py
+from datetime import datetime, timedelta
+import secrets
+from app.dependencies import get_current_user
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
@@ -25,6 +28,22 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# =========================
+# OTP CONFIG + HELPER
+# =========================
+
+OTP_LENGTH = 6
+OTP_EXP_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
+
+
+def generate_otp() -> str:
+    """
+    Generate zero-padded numeric OTP, e.g. '034291'
+    """
+    return f"{secrets.randbelow(10**OTP_LENGTH):0{OTP_LENGTH}d}"
 
 
 # =========================
@@ -67,6 +86,128 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
             "is_admin": user.is_admin,
         },
     }
+
+
+# =========================
+# REQUEST OTP FOR RESET (DEV MODE)
+# =========================
+@router.post("/request-otp")
+def request_otp(payload: schemas.OTPRequest, db: Session = Depends(get_db)):
+    """
+    Start password reset by generating an OTP and storing its hash
+    on the user. DEV MODE: OTP is printed in backend logs only.
+    """
+    identifier = payload.identifier.strip()
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.username == identifier)
+        .first()
+    )
+
+    # Do not reveal if user exists -> generic response
+    if not user:
+        return {"detail": "If an account exists, an OTP has been sent."}
+
+    if user.otp_locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account temporarily locked due to too many OTP attempts.",
+        )
+
+    code = generate_otp()
+    user.otp_code_hash = get_password_hash(code)
+    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXP_MINUTES)
+    user.otp_attempts = 0
+
+    db.add(user)
+    db.commit()
+
+    # ✅ DEV MODE: PRINT OTP IN TERMINAL
+    print("=" * 50)
+    print(f"[DEV OTP] Username: {user.username}")
+    print(f"[DEV OTP] OTP Code: {code}")
+    print("=" * 50)
+
+    return {"detail": "If an account exists, an OTP has been sent."}
+
+
+# =========================
+# RESET PASSWORD WITH OTP
+# =========================
+@router.post("/reset-with-otp")
+def reset_with_otp(payload: schemas.OTPReset, db: Session = Depends(get_db)):
+    """
+    Verify OTP and set a new password.
+    """
+    identifier = payload.identifier.strip()
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.username == identifier)
+        .first()
+    )
+
+    if not user:
+        # avoid username enumeration
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid OTP or identifier.",
+        )
+
+    if user.otp_locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account temporarily locked due to too many OTP attempts.",
+        )
+
+    if not user.otp_code_hash or not user.otp_expires_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active OTP request. Please request a new OTP.",
+        )
+
+    now = datetime.utcnow()
+    if user.otp_expires_at < now:
+        user.otp_code_hash = None
+        user.otp_expires_at = None
+        db.add(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP has expired. Please request a new one.",
+        )
+
+    if user.otp_attempts >= OTP_MAX_ATTEMPTS:
+        user.otp_locked = True
+        db.add(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many OTP attempts. Account locked.",
+        )
+
+    # verify numeric code using same hasher as passwords
+    if not verify_password(payload.otp, user.otp_code_hash):
+        user.otp_attempts += 1
+        db.add(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid OTP.",
+        )
+
+    # ✅ OTP valid -> reset password
+    user.hashed_password = get_password_hash(payload.new_password)
+    user.otp_code_hash = None
+    user.otp_expires_at = None
+    user.otp_attempts = 0
+    user.otp_locked = False
+
+    db.add(user)
+    db.commit()
+
+    return {"detail": "Password reset successful. You can now log in."}
 
 
 # =========================
@@ -134,6 +275,29 @@ def change_password(
     db.commit()
 
     return {"detail": "Password updated successfully"}
+
+
+
+# =========================
+# USER COUNT (ADMIN ONLY)
+# =========================
+@router.get("/user-count")
+def get_user_count(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Return total number of users in the system.
+    Only admins can access this.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admins only",
+        )
+
+    total = db.query(models.User).count()
+    return {"total_users": total}
 
 
 # =========================
