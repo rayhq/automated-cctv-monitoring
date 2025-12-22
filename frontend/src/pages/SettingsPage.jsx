@@ -8,6 +8,8 @@ import {
   Bell,
   User,
   ShieldCheck,
+  Mail,
+  Smartphone
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -164,13 +166,69 @@ const SettingsPage = () => {
       {/* NOTIFICATIONS TAB */}
       {activeTab === "Notifications" && (
         <GlassCard>
-          <h2 className="flex items-center gap-2 text-lg font-semibold mb-1">
-            <Bell className="w-5 h-5 text-cyan-400" />
-            Notifications
-          </h2>
-          <p className="text-slate-400 text-sm">
-            Notification settings will be added here later.
-          </p>
+            <div className="flex items-center gap-2 text-lg font-semibold mb-6">
+                <Bell className="w-5 h-5 text-cyan-400" />
+                Notification Preferences
+            </div>
+            
+            <div className="space-y-8 max-w-2xl">
+                {/* Channel Toggles */}
+                <div className="space-y-4">
+                     <h3 className="text-sm font-medium text-slate-300">Alert Channels</h3>
+                     <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                         <div className="flex items-center gap-3">
+                             <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400"><Mail className="w-4 h-4" /></div>
+                             <div>
+                                 <p className="text-sm font-medium text-white">Email Alerts</p>
+                                 <p className="text-xs text-slate-400">Receive snapshots via email</p>
+                             </div>
+                         </div>
+                         <ToggleSwitch />
+                     </div>
+                     <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                         <div className="flex items-center gap-3">
+                             <div className="p-2 rounded-lg bg-pink-500/20 text-pink-400"><Smartphone className="w-4 h-4" /></div>
+                             <div>
+                                 <p className="text-sm font-medium text-white">Push Notifications</p>
+                                 <p className="text-xs text-slate-400">Real-time browser notifications</p>
+                             </div>
+                         </div>
+                         <ToggleSwitch defaultChecked />
+                     </div>
+                </div>
+
+                {/* Configurations */}
+                <div className="space-y-6">
+                     <h3 className="text-sm font-medium text-slate-300">Detection Settings</h3>
+                     
+                     <div className="space-y-3">
+                         <div className="flex justify-between text-sm">
+                             <span className="text-slate-400">Motion Sensitivity</span>
+                             <span className="text-cyan-400 font-mono">High (85%)</span>
+                         </div>
+                         <input type="range" className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400" />
+                         <p className="text-[10px] text-slate-500">Higher sensitivity may cause false positives from shadows or small animals.</p>
+                     </div>
+
+                     <div className="space-y-3">
+                         <div className="flex justify-between text-sm">
+                             <span className="text-slate-400">Alert Cooldown</span>
+                             <span className="text-cyan-400 font-mono">5 minutes</span>
+                         </div>
+                         <input type="range" className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400" />
+                         <p className="text-[10px] text-slate-500">Minimum time between consecutive alerts for the same camera.</p>
+                     </div>
+                </div>
+
+                {/* Email Config */}
+                <div className="pt-4 border-t border-white/10">
+                    <label className="block text-xs font-medium text-slate-300 mb-2">Recipient Email Address</label>
+                    <div className="flex gap-2">
+                        <input type="email" value="admin@secure-campus.edu" className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-cyan-500/50" readOnly />
+                        <button className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-lg transition-colors">Update</button>
+                    </div>
+                </div>
+            </div>
         </GlassCard>
       )}
 
@@ -458,5 +516,18 @@ const GlassCard = ({ children, accent = "none" }) => {
     </div>
   );
 };
+
+/* Simple Toggle Switch */
+const ToggleSwitch = ({ defaultChecked }) => {
+    const [checked, setChecked] = useState(defaultChecked || false);
+    return (
+        <button 
+            onClick={() => setChecked(!checked)}
+            className={`w-11 h-6 rounded-full relative transition-colors ${checked ? 'bg-cyan-500' : 'bg-slate-700'}`}
+        >
+            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+        </button>
+    );
+}
 
 export default SettingsPage;

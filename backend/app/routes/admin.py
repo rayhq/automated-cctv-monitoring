@@ -5,7 +5,7 @@ from jose import jwt, JWTError
 
 from app.database import SessionLocal, engine, Base
 from app import models
-from app.auth import SECRET_KEY, ALGORITHM
+from app.config import settings
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -42,7 +42,7 @@ def get_current_admin(
     token = auth_header.split(" ", 1)[1].strip()
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             raise HTTPException(

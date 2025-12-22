@@ -3,11 +3,27 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Sidebar from "../components/Sidebar";
+import TopBar from "../components/TopBar";
+import CommandPalette from "../components/CommandPalette";
 
 const MainLayout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [healthStatus, setHealthStatus] = useState("checking");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  // Command Palette Listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -31,30 +47,40 @@ const MainLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#0B0F14] text-[#E5E7EB]">
+    <div className="flex h-screen bg-transparent text-[#e2e8f0] font-sans overflow-hidden">
       {/* SIDEBAR */}
-      <Sidebar user={user} onLogout={handleLogout} />
+      <Sidebar 
+        user={user} 
+        onLogout={handleLogout} 
+        isOpen={isMobileMenuOpen} 
+        onClose={() => setIsMobileMenuOpen(false)} 
+      />
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="h-16 bg-[#0E131A] border-b border-[#1F2430] flex items-center justify-between px-6">
-          <h2 className="text-xl font-semibold text-[#E5E7EB]">
-            Smart Campus CCTV Monitoring
-          </h2>
-          <div className="flex items-center gap-4">
-            <StatusPill status={healthStatus} />
-            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 via-cyan-400 to-blue-600 rounded-full flex items-center justify-center font-bold shadow-md shadow-black/40">
-              {(user?.username || "A").charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </header>
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col relative overflow-hidden">
+        {/* NEW TOP BAR */}
+        <TopBar 
+            user={user} 
+            onLogout={handleLogout}
+            isMobileMenuOpen={isMobileMenuOpen}
+            setIsMobileMenuOpen={setIsMobileMenuOpen}
+        />
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto p-6 bg-[#0B0F14]">
-          <Outlet />
+        <main className="flex-1 overflow-auto p-4 sm:p-6 scrollbar-hide pt-0">
+           {/* Added max-width container for content consistency */}
+           <div className="max-w-7xl mx-auto">
+             <Outlet />
+           </div>
         </main>
       </div>
+      
+      {/* COMMAND PALETTE */}
+      <CommandPalette 
+        isOpen={isCommandPaletteOpen} 
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onLogout={handleLogout}
+      />
     </div>
   );
 };

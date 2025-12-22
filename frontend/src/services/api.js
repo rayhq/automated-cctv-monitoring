@@ -150,8 +150,21 @@ export const api = {
   },
 
   // ---------- EVENTS ----------
-  async fetchEvents(limit = 50) {
-    const url = `${API_BASE}/api/events?limit=${encodeURIComponent(limit)}`;
+  async fetchEvents(params = {}) {
+    // Determine query params
+    const searchParams = new URLSearchParams();
+    
+    // Default limit if not provided
+    if (!params.limit) searchParams.append("limit", "50");
+
+    // Check all keys in params
+    Object.keys(params).forEach((key) => {
+        if (params[key] !== undefined && params[key] !== null && params[key] !== "") {
+            searchParams.append(key, params[key]);
+        }
+    });
+
+    const url = `${API_BASE}/api/events?${searchParams.toString()}`;
 
     const res = await fetch(url, {
       method: "GET",

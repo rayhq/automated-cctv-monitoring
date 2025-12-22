@@ -8,12 +8,11 @@ from jose import jwt, JWTError
 
 from app.database import SessionLocal
 from app import models, schemas
+from app.config import settings
 from app.auth import (
     verify_password,
     create_access_token,
     get_password_hash,
-    SECRET_KEY,
-    ALGORITHM,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -241,7 +240,7 @@ def change_password(
 
     # 2️⃣ Decode JWT and get username (sub)
     try:
-        payload_jwt = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload_jwt = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload_jwt.get("sub")
         if username is None:
             raise HTTPException(

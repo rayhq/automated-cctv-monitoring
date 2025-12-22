@@ -1,12 +1,15 @@
-// src/pages/CamerasPage.jsx
 import React, { useEffect, useState } from "react";
-import { Camera, Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Camera, Plus, Trash2, ToggleLeft, ToggleRight, X, MapPin, Activity, Signal } from "lucide-react";
 import { api } from "../services/api";
 
 const CamerasPage = () => {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const [form, setForm] = useState({
     camera_id: "",
@@ -14,8 +17,6 @@ const CamerasPage = () => {
     rtsp_url: "",
     location: "",
   });
-
-  const [creating, setCreating] = useState(false);
 
   const loadCameras = async () => {
     try {
@@ -44,6 +45,7 @@ const CamerasPage = () => {
         is_active: true,
       });
       setForm({ camera_id: "", name: "", rtsp_url: "", location: "" });
+      setIsModalOpen(false);
       await loadCameras();
     } catch (err) {
       alert(err.message || "Failed to create camera");
@@ -72,151 +74,181 @@ const CamerasPage = () => {
   };
 
   return (
-    <div className="space-y-6 animate-[fadeIn_0.5s_ease-in] p-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white flex items-center gap-2">
-          <Camera className="w-6 h-6 text-cyan-400" />
-          Camera Management
-        </h1>
-        <p className="text-slate-400 mt-1">
-          Add, configure, and manage all campus CCTV cameras.
-        </p>
-      </div>
-
-      {/* Add Camera Form */}
-      <div className="bg-slate-900/95 rounded-xl border border-slate-800 p-5 shadow-xl">
-        <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-          <Plus className="w-4 h-4 text-cyan-400" />
-          Add New Camera
-        </h2>
-        <form
-          onSubmit={handleCreate}
-          className="grid grid-cols-1 md:grid-cols-4 gap-3"
-        >
-          <input
-            type="text"
-            placeholder="Camera ID (e.g. cam1)"
-            value={form.camera_id}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, camera_id: e.target.value }))
-            }
-            className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-          />
-          <input
-            type="text"
-            placeholder="Name (e.g. Lab Camera 1)"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-          />
-          <input
-            type="text"
-            placeholder="RTSP / Video URL"
-            value={form.rtsp_url}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, rtsp_url: e.target.value }))
-            }
-            className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-          />
-          <input
-            type="text"
-            placeholder="Location (optional)"
-            value={form.location}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, location: e.target.value }))
-            }
-            className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-          />
-
-          <button
-            type="submit"
-            disabled={creating}
-            className="md:col-span-4 mt-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-sm font-medium text-white transition disabled:opacity-60"
+    <div className="space-y-6 animate-[fadeIn_0.5s_ease-in] p-6 text-slate-200">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+              <Camera className="w-6 h-6 text-cyan-400" />
+              Camera Management
+            </h1>
+            <p className="text-slate-400 mt-1 max-w-lg text-sm">
+              Configure your surveillance network. Add new RTSP streams or manage existing camera feeds.
+            </p>
+          </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-lg shadow-lg shadow-cyan-500/20 transition-all active:scale-95"
           >
-            <Plus className="w-4 h-4" />
-            {creating ? "Adding..." : "Add Camera"}
+              <Plus className="w-4 h-4" />
+              Add Camera
           </button>
-        </form>
       </div>
 
-      {/* Cameras Table */}
-      <div className="bg-slate-900/95 rounded-xl border border-slate-800 shadow-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">
-            Registered Cameras
-          </h2>
-          {loading && (
-            <span className="text-xs text-slate-400">Loading...</span>
-          )}
-        </div>
-        {error ? (
-          <div className="p-5 text-sm text-red-400">{error}</div>
-        ) : cameras.length === 0 ? (
-          <div className="p-5 text-sm text-slate-400">
-            No cameras configured yet.
+      {/* Error Banner */}
+      {error && (
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              {error}
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-800/80 text-slate-400">
-                <tr>
-                  <th className="px-5 py-3 text-left">Camera ID</th>
-                  <th className="px-5 py-3 text-left">Name</th>
-                  <th className="px-5 py-3 text-left">Location</th>
-                  <th className="px-5 py-3 text-left">Status</th>
-                  <th className="px-5 py-3 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {cameras.map((cam) => (
-                  <tr key={cam.id} className="hover:bg-slate-800/40">
-                    <td className="px-5 py-3 font-mono text-slate-200">
-                      {cam.camera_id}
-                    </td>
-                    <td className="px-5 py-3 text-slate-200">{cam.name}</td>
-                    <td className="px-5 py-3 text-slate-400">
-                      {cam.location || "-"}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] ${
-                          cam.is_active
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/40"
-                            : "bg-slate-700/60 text-slate-300 border border-slate-600"
-                        }`}
-                      >
-                        {cam.is_active ? (
-                          <ToggleRight className="w-3 h-3" />
-                        ) : (
-                          <ToggleLeft className="w-3 h-3" />
-                        )}
-                        {cam.is_active ? "Active" : "Disabled"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => handleToggle(cam.camera_id)}
-                          className="text-xs text-cyan-400 hover:text-cyan-300"
-                        >
-                          Toggle
-                        </button>
-                        <button
-                          onClick={() => handleDelete(cam.camera_id)}
-                          className="text-xs text-red-400 hover:text-red-300 inline-flex items-center gap-1"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          Delete
-                        </button>
+      )}
+
+      {/* Grid Content */}
+      {loading ? (
+           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+               {[1,2,3].map(i => <div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse" />)}
+           </div>
+      ) : cameras.length === 0 ? (
+           <div className="py-20 flex flex-col items-center justify-center text-center glass-card rounded-2xl border-dashed border-2 border-slate-800">
+               <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4">
+                    <Camera className="w-8 h-8 text-slate-600" />
+               </div>
+               <h3 className="text-lg font-medium text-white">No Cameras Configured</h3>
+               <p className="text-slate-500 max-w-sm mt-2 mb-6">Start by adding your first camera stream to begin monitoring your premises.</p>
+               <button onClick={() => setIsModalOpen(true)} className="text-cyan-400 font-medium hover:underline">Add Camera Now</button>
+           </div>
+      ) : (
+           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+               {cameras.map(cam => (
+                   <div key={cam.camera_id} className="group glass-card rounded-2xl overflow-hidden border border-white/5 hover:border-cyan-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-cyan-900/10">
+                       {/* Preview Header */}
+                       <div className="relative h-48 bg-black group-hover:opacity-90 transition-opacity">
+                            {/* Live Preview Placeholder (Actual impl would fetch snapshot) */}
+                            <img 
+                                src={`http://127.0.0.1:8000/video/stream/${cam.camera_id}`} 
+                                className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-500"
+                                onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/600x400/111/444?text=Signal'; }}
+                            />
+                            
+                            <div className="absolute top-3 right-3 flex gap-2">
+                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-md ${cam.is_active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-500/40 text-slate-300 border-white/10'}`}>
+                                    {cam.is_active ? 'Active' : 'Offline'}
+                                </span>
+                            </div>
+                            
+                            <div className="absolute bottom-3 left-3">
+                                <h3 className="text-white font-bold text-shadow-md">{cam.name}</h3>
+                            </div>
+                       </div>
+
+                       {/* Action Footer */}
+                       <div className="p-4 bg-white/[0.02]">
+                           <div className="flex items-center justify-between mb-4">
+                               <div className="flex items-center gap-2 text-xs text-slate-400">
+                                   <MapPin className="w-3.5 h-3.5" />
+                                   {cam.location || "Unspecified Location"}
+                               </div>
+                               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
+                                   <Signal className="w-3.5 h-3.5" />
+                                   {cam.camera_id}
+                               </div>
+                           </div>
+
+                           <div className="flex items-center gap-3 pt-3 border-t border-white/5">
+                               <button 
+                                onClick={() => handleToggle(cam.camera_id)}
+                                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${cam.is_active ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'}`}
+                               >
+                                   {cam.is_active ? 'Disable Feed' : 'Enable Feed'}
+                               </button>
+                               <button 
+                                onClick={() => handleDelete(cam.camera_id)}
+                                className="p-2 rounded-lg border border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-colors"
+                                title="Delete Camera"
+                               >
+                                   <Trash2 className="w-4 h-4" />
+                               </button>
+                           </div>
+                       </div>
+                   </div>
+               ))}
+           </div>
+      )}
+
+      {/* Modal */}
+      {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
+              
+              <div className="relative w-full max-w-md bg-[#0B0F14] border border-white/10 rounded-2xl shadow-2xl p-6 animate-slide-up">
+                  <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-xl font-bold text-white">Add New Camera</h2>
+                      <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+                  </div>
+
+                  <form onSubmit={handleCreate} className="space-y-4">
+                      <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">Camera Identifier</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. cam-05" 
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-cyan-500/50 outline-none transition-colors placeholder:text-slate-600"
+                            value={form.camera_id}
+                            onChange={e => setForm({...form, camera_id: e.target.value})}
+                          />
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">Friendly Name</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Server Room Main" 
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-cyan-500/50 outline-none transition-colors placeholder:text-slate-600"
+                            value={form.name}
+                            onChange={e => setForm({...form, name: e.target.value})}
+                          />
+                      </div>
+                       <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">RTSP / Video Source</label>
+                          <input 
+                            type="text" 
+                            placeholder="rtsp://admin:password@192.168.1.10..." 
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-cyan-500/50 outline-none transition-colors placeholder:text-slate-600 font-mono"
+                            value={form.rtsp_url}
+                            onChange={e => setForm({...form, rtsp_url: e.target.value})}
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">Location (Optional)</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Building A, Floor 2" 
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-cyan-500/50 outline-none transition-colors placeholder:text-slate-600"
+                            value={form.location}
+                            onChange={e => setForm({...form, location: e.target.value})}
+                          />
+                      </div>
+
+                      <div className="pt-4 flex gap-3">
+                          <button 
+                            type="button" 
+                            onClick={() => setIsModalOpen(false)}
+                            className="flex-1 py-2.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/5 text-sm font-medium transition-colors"
+                          >
+                              Cancel
+                          </button>
+                          <button 
+                            type="submit" 
+                            disabled={creating}
+                            className="flex-1 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors shadow-lg shadow-cyan-900/20 disabled:opacity-50"
+                          >
+                              {creating ? "Connecting..." : "Add Camera"}
+                          </button>
+                      </div>
+                  </form>
+              </div>
           </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };

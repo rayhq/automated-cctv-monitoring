@@ -24,6 +24,7 @@ import {
   Bar,
 } from "recharts";
 import { api } from "../services/api";
+import Skeleton from "../components/Skeleton";
 
 // Helper: convert backend UTC timestamp to local time (IST, etc.)
 const formatEventTime = (isoString) => {
@@ -245,57 +246,14 @@ const Dashboard = () => {
         <p className="text-sm font-medium text-[#9CA3AF] mb-1">Dashboard</p>
       </div>
 
-      {/* Compact hero / header bar */}
-      <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] px-6 py-4 flex items-center justify-between gap-4 glow-hover">
-        <div>
-          <div className="inline-flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[#1F2430] bg-[#050814] text-[11px] font-medium text-[#9CA3AF] uppercase tracking-wide">
-              Overview
-            </span>
-          </div>
-          <h2 className="text-xl font-semibold text-[#E5E7EB]">
-            Smart Campus CCTV Monitoring
-          </h2>
-          <p className="text-xs text-[#9CA3AF] mt-1">
-            Real-time AI-assisted surveillance for your campus perimeter,
-            corridors and common areas.
-          </p>
-        </div>
-
-        <div className="flex flex-col items-end gap-1 text-xs">
-          <span
-            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${
-              wsStatus === "connected"
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                : "border-[#374151] bg-[#111827] text-[#9CA3AF]"
-            } font-medium`}
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                wsStatus === "connected" ? "bg-emerald-400" : "bg-[#6B7280]"
-              } animate-pulse`}
-            />
-            {wsStatus === "connected"
-              ? "Live monitoring"
-              : "Waiting for live feed"}
-          </span>
-
-          {/* tiny Active Users pill */}
-          {activeUsers != null && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#020617] border border-[#1F2430] text-[11px] text-[#9CA3AF]">
-              <Users className="w-3 h-3 text-cyan-300" />
-              <span>
-                {activeUsers} active user{activeUsers === 1 ? "" : "s"}
-              </span>
-            </span>
-          )}
-
-          <span className="text-[#9CA3AF]">
-            Latest events stream in{" "}
-            <span className="font-semibold">instantly</span>
-          </span>
-        </div>
+      {/* Small breadcrumb label */}
+      <div>
+        <p className="text-sm font-medium text-[#9CA3AF] mb-1">Overview</p>
       </div>
+
+      {/* Hero section removed (moved to TopBar) */}
+      
+      {/* Error banner */}
 
       {/* Error banner */}
       {error && (
@@ -310,45 +268,65 @@ const Dashboard = () => {
 
       {/* Stat cards row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Events"
-          value={stats.totalEvents}
-          icon={Activity}
-        />
-        <StatCard
-          title="Active Cameras"
-          value={stats.uniqueCameras}
-          icon={Camera}
-        />
-        <StatCard
-          title="Intrusion Alerts"
-          value={stats.intrusionEvents}
-          icon={AlertCircle}
-          accent="red"
-        />
-        <StatCard
-          title="Last Event"
-          value={formatEventTime(stats.lastEventTime)}
-          icon={Clock}
-        />
+        {loading ? (
+           <>
+              <Skeleton height="96px" className="w-full" />
+              <Skeleton height="96px" className="w-full" />
+              <Skeleton height="96px" className="w-full" />
+              <Skeleton height="96px" className="w-full" />
+           </>
+        ) : (
+            <>
+                <StatCard
+                title="Total Events"
+                value={stats.totalEvents}
+                icon={Activity}
+                />
+                <StatCard
+                title="Active Cameras"
+                value={stats.uniqueCameras}
+                icon={Camera}
+                />
+                <StatCard
+                title="Intrusion Alerts"
+                value={stats.intrusionEvents}
+                icon={AlertCircle}
+                accent="red"
+                />
+                <StatCard
+                title="Last Event"
+                value={formatEventTime(stats.lastEventTime)}
+                icon={Clock}
+                />
+            </>
+        )}
       </div>
 
       {/* 📊 Analytics row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <EventsOverTimeChart data={eventsOverTimeData} />
-        <EventsPerCameraChart
-          data={eventsPerCameraData}
-          cameraIds={topCameraIds}
-        />
+        {loading ? (
+             <>
+                 <Skeleton height="300px" className="w-full" />
+                 <Skeleton height="300px" className="w-full" />
+             </>
+        ) : (
+             <>
+                <EventsOverTimeChart data={eventsOverTimeData} />
+                <EventsPerCameraChart
+                data={eventsPerCameraData}
+                cameraIds={topCameraIds}
+                />
+             </>
+        )}
       </div>
 
       {/* Main grid: events table + insights */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Events table */}
         <div className="lg:col-span-2">
-          <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] overflow-hidden glow-hover">
-            <div className="p-4 border-b border-[#1F2430]">
-              <h2 className="text-lg font-semibold text-[#E5E7EB] mb-3">
+          <div className="rounded-xl glass-card overflow-hidden">
+            <div className="p-4 border-b border-white/5">
+              <h2 className="text-lg font-semibold text-slate-100 mb-3">
                 Security Events Timeline
               </h2>
 
@@ -395,9 +373,10 @@ const Dashboard = () => {
 
             <div className="overflow-x-auto max-h-[600px]">
               {loading ? (
-                <div className="p-10 text-center">
-                  <div className="inline-block w-8 h-8 border-4 border-[#1F2430] border-t-cyan-500 rounded-full animate-spin" />
-                  <p className="text-[#9CA3AF] mt-4">Loading events...</p>
+                <div className="p-4 space-y-3">
+                   {[1,2,3,4,5].map(i => (
+                       <Skeleton key={i} height="48px" className="w-full bg-white/5" />
+                   ))}
                 </div>
               ) : filteredEvents.length === 0 ? (
                 <div className="p-10 text-center">
@@ -495,8 +474,8 @@ const Dashboard = () => {
         </div>
 
         {/* Live Security Insights */}
-        <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-4 h-fit glow-hover">
-          <h2 className="text-lg font-semibold text-[#E5E7EB] mb-3 flex items-center gap-2">
+        <div className="rounded-xl glass-card p-4 h-fit">
+          <h2 className="text-lg font-semibold text-slate-100 mb-3 flex items-center gap-2">
             <Activity className="w-5 h-5 text-cyan-400" />
             Live Security Insights
           </h2>
@@ -539,10 +518,10 @@ const StatCard = ({ title, value, icon: Icon, accent = "blue" }) => {
       : "bg-blue-500/15 text-blue-400";
 
   return (
-    <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-5 flex items-center justify-between glow-hover">
+    <div className="rounded-xl glass-card p-5 flex items-center justify-between">
       <div>
-        <p className="text-sm font-medium text-[#9CA3AF] mb-1">{title}</p>
-        <span className="text-3xl font-bold text-[#E5E7EB]">{value}</span>
+        <p className="text-sm font-medium text-slate-400 mb-1">{title}</p>
+        <span className="text-3xl font-bold text-slate-100">{value}</span>
       </div>
 
       <div
@@ -557,9 +536,9 @@ const StatCard = ({ title, value, icon: Icon, accent = "blue" }) => {
 /* ---------- Charts ---------- */
 
 const EventsOverTimeChart = ({ data }) => (
-  <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-4 glow-hover">
+  <div className="rounded-xl glass-card p-4">
     <div className="flex items-center justify-between mb-2">
-      <h3 className="text-sm font-semibold text-[#E5E7EB]">
+      <h3 className="text-sm font-semibold text-slate-100">
         Events over time
       </h3>
       <span className="text-[11px] text-[#6B7280]">By hour</span>
@@ -604,9 +583,9 @@ const EventsPerCameraChart = ({ data, cameraIds }) => {
   const colors = ["#60a5fa", "#22c55e", "#a855f7", "#f97316"];
 
   return (
-    <div className="rounded-xl border border-[#1F2430] bg-[#0B0F14] p-4 glow-hover">
+    <div className="rounded-xl glass-card p-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-[#E5E7EB]">
+        <h3 className="text-sm font-semibold text-slate-100">
           Events per camera
         </h3>
         <span className="text-[11px] text-[#6B7280]">

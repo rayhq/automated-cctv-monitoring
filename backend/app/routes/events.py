@@ -62,13 +62,35 @@ manager = ConnectionManager()
 # --------------------------------------------------
 
 @router.get("/", response_model=List[schemas.EventRead])
-def list_events(limit: int = 50, db: Session = Depends(get_db)):
+def list_events(
+    limit: int = 50,
+    skip: int = 0,
+    camera_id: str | None = None,
+    event_type: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    db: Session = Depends(get_db)
+):
     """
-    Return latest events (newest first).
+    Return filtered events with pagination.
     """
+    query = db.query(models.Event)
+
+    if camera_id:
+        query = query.filter(models.Event.camera_id == camera_id)
+    if event_type and event_type != "all":
+        query = query.filter(models.Event.event_type == event_type)
+    
+    # Date filtering
+    if start_date:
+        # Expect ISO format YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS
+        query = query.filter(models.Event.timestamp >= start_date)
+    if end_date:
+        query = query.filter(models.Event.timestamp <= end_date)
+
     events = (
-        db.query(models.Event)
-        .order_by(models.Event.timestamp.desc())
+        query.order_by(models.Event.timestamp.desc())
+        .offset(skip)
         .limit(limit)
         .all()
     )

@@ -79,6 +79,16 @@ const ForgotPassword = () => {
       return;
     }
 
+    if (newPassword.length < 8) {
+        setError("Password must be at least 8 characters long.");
+        return;
+    }
+
+    if (otp.trim().length < 4) {
+        setError("OTP must be valid.");
+        return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/reset-with-otp`, {

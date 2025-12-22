@@ -1,11 +1,12 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 
-const SidebarLink = ({ to, icon: Icon, label, end = false, small = false }) => {
+const SidebarLink = ({ to, icon: Icon, label, end = false, small = false, ...props }) => {
   return (
     <NavLink
       to={to}
       end={end}
+      {...props}
       className={({ isActive }) =>
         `
         group relative flex items-center gap-3 
