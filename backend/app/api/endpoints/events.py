@@ -13,6 +13,8 @@ from fastapi import (
 )
 
 from app.core.database import SessionLocal
+from app.api.endpoints import cameras
+from app.services.websocket_manager import manager
 from app.models import all_models as models
 from app.schemas import all_schemas as schemas
 

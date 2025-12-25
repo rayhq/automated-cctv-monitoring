@@ -12,7 +12,7 @@ from app.models import all_models as models
 from app.api.endpoints import auth, events, cameras, video, admin, settings 
 # Ensure video module is correctly referenced if imported from package
 import app.api.endpoints.video as video_module 
-from app.api.websockets import manager
+from app.services.websocket_manager import manager
 
 # ---------------------------------------------------------
 # 🛑 GRACEFUL SHUTDOWN LOGIC
