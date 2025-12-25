@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 
-from app.database import SessionLocal, engine, Base
-from app import models
-from app.config import settings
+from app.core.database import SessionLocal, engine, Base
+from app.models import all_models as models
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 

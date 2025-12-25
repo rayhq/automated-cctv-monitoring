@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 
-from app.database import SessionLocal
-from app import models, schemas
-from app.config import settings
-from app.auth import (
+from app.core.database import SessionLocal
+from app.models import all_models as models
+from app.schemas import all_schemas as schemas
+from app.core.config import settings
+from app.api.auth import (
     verify_password,
     create_access_token,
     get_password_hash,
@@ -273,7 +274,51 @@ def change_password(
     db.add(user)
     db.commit()
 
-    return {"detail": "Password updated successfully"}
+
+# =========================
+# UPDATE PROFILE
+# =========================
+@router.put("/me")
+def update_profile(
+    payload: schemas.UserProfileUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
+    token = auth_header.split(" ", 1)[1].strip()
+
+    try:
+        payload_jwt = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        username: str = payload_jwt.get("sub")
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.firstName or payload.lastName:
+        # Combine first and last name for full_name
+        first = payload.firstName or ""
+        last = payload.lastName or ""
+        user.full_name = f"{first} {last}".strip()
+    
+    # We don't have bio or email columns yet, so we'll just log/ignore them for this MVF (Minimum Viable Feature)
+    # real implementation would need DB migration
+    
+    db.commit()
+    return {"detail": "Profile updated", "user": {"full_name": user.full_name, "username": user.username}}
+
+
 
 
 

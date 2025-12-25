@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 import requests
 
-API_URL = "http://127.0.0.1:8000/api/events"
+API_URL = os.getenv("API_URL", "http://localhost:8000/api/events")
 
 CAMERAS = ["cam1", "cam2"]
 EVENT_TYPES = ["intrusion", "loitering", "crowd"]

@@ -11,6 +11,7 @@ class ObjectDetector:
         self.model_path = model_path
         self.conf_threshold = conf_threshold
         self.model = None
+        self.device = 'cpu' # Default to CPU
         self.phone_class_ids = []
         self.person_class_ids = []
         self._load_model()
@@ -20,7 +21,24 @@ class ObjectDetector:
         logger.info(f"🔁 Loading YOLOv8 model ({self.model_path})...")
         try:
             self.model = YOLO(self.model_path)
-            logger.info("✅ YOLOv8 model loaded successfully.")
+            
+            # 🚀 Auto-detect Device: Try GPU first
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    logger.info(f"✅ CUDA Detected: {torch.cuda.get_device_name(0)}")
+                    self.device = 0
+                else:
+                    logger.warning("⚠️ CUDA not available, falling back to CPU.")
+                    self.device = 'cpu'
+            except ImportError:
+                logger.warning("⚠️ Torch not found (how?), using CPU.")
+                self.device = 'cpu'
+            except Exception as e:
+                logger.warning(f"⚠️ Error checking CUDA: {e}. Using CPU.")
+                self.device = 'cpu'
+
+            logger.info(f"🚀 Object Detector initialized on device: {self.device}")
 
             # Identify relevant class IDs from the model's names
             self.phone_class_ids = [
@@ -36,19 +54,27 @@ class ObjectDetector:
             self.model = None
             self.phone_class_ids = []
             self.person_class_ids = []
+            self.device = 'cpu'
 
     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, str, float]]:
         """
         Run inference on a frame and return a list of detections.
-        
-        Returns:
-            List of tuples: (x1, y1, x2, y2, class_name, confidence)
-            class_name will be 'phone' or 'person'
         """
         if self.model is None:
             return []
 
-        results = self.model(frame, conf=self.conf_threshold, verbose=False)
+        # Use the determined device
+        try:
+            results = self.model(frame, conf=self.conf_threshold, verbose=False, device=self.device)
+        except Exception as e:
+            # Fallback on runtime error (e.g. CUDA OOM of sudden failure)
+            if self.device != 'cpu':
+                print(f"⚠️ GPU Inference failed ({e}). Switching to CPU.")
+                self.device = 'cpu'
+                results = self.model(frame, conf=self.conf_threshold, verbose=False, device='cpu')
+            else:
+                return []
+                
         detections = []
 
         for r in results:

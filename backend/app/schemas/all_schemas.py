@@ -108,3 +108,29 @@ class CameraRead(CameraBase):
 
     class Config:
         from_attributes = True
+
+# =====================
+# Settings
+# =====================
+
+class SystemSettings(BaseModel):
+    retentionDays: int = 14
+    streamQuality: str = "High"  # Low, Medium, High
+    theme: str = "Dark"
+    autoUpdate: bool = True
+    
+    # Notification preferences
+    emailAlerts: bool = False
+    pushNotifications: bool = True
+    sensitivity: int = 85
+    cooldown: int = 5
+    
+    # Discord Integration
+    discordEnabled: bool = False
+    discordWebhookUrl: str = ""
+
+class UserProfileUpdate(BaseModel):
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    email: Optional[str] = None
+    bio: Optional[str] = None

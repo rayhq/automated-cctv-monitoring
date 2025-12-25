@@ -27,7 +27,7 @@ dist-ssr/
 .env.*.local
 
 ##################################
-# Backend / Python (FastAPI + YOLO)
+# Backend / Python (fastapi-backend)
 ##################################
 # Virtual envs
 venv/
@@ -40,22 +40,26 @@ backend/**/__pycache__/
 *.pyo
 *.pyd
 
-# Databases
+# Databases (SQLite)
 *.db
 *.sqlite3
 *.db3
 backend/cctv.db
 
-# Models / large binaries
+# Models / Large Binaries
 *.pt
 *.onnx
 *.weights
 
-# Runtime data (do NOT commit)
-backend/app/media
-backend/media
-
+# Runtime Data / User Config (Do NOT Commit)
+backend/media/
+backend/config/system_settings.json
+backend/.env
 backend/samples/
+
+# Optional: Keep the config directory structure, but ignore the file above
+# If you want to ignore the whole directory:
+# backend/config/
 
 ##################################
 # OS / Editor / IDE
@@ -65,9 +69,6 @@ backend/samples/
 .idea/
 .DS_Store
 Thumbs.db
-
 *.suo
-*.ntvs*
-*.njsproj
 *.sln
 *.sw?

@@ -3,9 +3,9 @@ from fastapi import Depends, HTTPException, Request, status
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import SessionLocal
-from app import models
+from app.core.config import settings
+from app.core.database import SessionLocal
+from app.models import all_models as models
 
 
 def get_db():

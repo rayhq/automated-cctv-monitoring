@@ -13,17 +13,22 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from urllib.parse import urlsplit, urlunsplit, quote
 
-from app.database import SessionLocal
-from app import models
-from app.detection import ObjectDetector
+from app.core.database import SessionLocal
+from app.models import all_models as models
+from app.services.detection import ObjectDetector
+import app.api.endpoints.settings as settings_module
 
 router = APIRouter()
 
 # ==========================================
 # 🔧 GLOBAL FFMPEG / RTSP SETTINGS
 # ==========================================
-# Force RTSP over TCP for more stable streaming
-# os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|max_delay;5000000"
+# Aggressive Low Latency Settings
+# ==========================================
+# 🔧 GLOBAL FFMPEG / RTSP SETTINGS
+# ==========================================
+# (Cleared custom flags to ensure compatibility)
+# os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = ... 
 
 # ==========================================
 # 🛑 GLOBAL SHUTDOWN SIGNAL
@@ -41,17 +46,12 @@ def set_stop_event(e: threading.Event):
 # ⚙️ CONFIGURATION & CONSTANTS
 # ==========================================
 CONFIDENCE_THRESHOLD = 0.4
-FRAME_SKIP = 3               # Lowered to 3 for smoother AI updates
+FRAME_SKIP = 3
 STREAM_RESOLUTION = (640, 360)
-EVENT_COOLDOWN = 15.0        # Seconds between database logs
+EVENT_COOLDOWN = 15.0
 
-# Increased to 30 for realtime feel. 
-# We rely on threaded capture to keep up.
-TARGET_FPS = 30              
-FRAME_INTERVAL = 1.0 / TARGET_FPS
-
-JPEG_QUALITY = 70            # 0–100, lower = smaller, faster
-MAX_CONSECUTIVE_FAILS = 30   # how many failed reads before reconnect
+JPEG_QUALITY = 40            # Aggressive compression for speed
+MAX_CONSECUTIVE_FAILS = 30
 
 # Colors (B, G, R)
 COLOR_RED = (0, 0, 255)      # Threat/Phone
@@ -146,6 +146,20 @@ def log_debug(msg):
     except:
         pass
 
+def verify_capture(cap):
+    """
+    Reads one frame to ensure the connection effectively transmits video.
+    Returns True if a frame is read successfully.
+    """
+    if not cap.isOpened():
+        return False
+    try:
+        # Try to read one frame to confirm stream is alive
+        ret, _ = cap.read()
+        return ret
+    except:
+        return False
+
 def open_capture(rtsp_url: str):
     """
     Open video source with Fallback Strategy:
@@ -159,41 +173,71 @@ def open_capture(rtsp_url: str):
     if str(rtsp_url).strip().isdigit():
         idx = int(str(rtsp_url).strip())
         log_debug(f"Opening as Webcam Index: {idx} with CAP_DSHOW")
-        return cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        if cap.isOpened():
+             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        return cap
 
     # 2. RTSP Streams
     if str(rtsp_url).lower().startswith("rtsp"):
         normalized = normalize_rtsp_url(rtsp_url)
         
-        # Strategy A: Internal TCP (Preferred)
-        url_tcp = add_tcp_param(normalized)
-        log_debug(f"Strategy A: Opening RTSP (TCP): {url_tcp}")
+        # Strategy A: TCP (Prioritized for Speed & Reliability)
+        # We use the clean URL but force TCP via environment variable.
+        # Modified: Removed ?tcp suffix injection to avoid 404 errors.
+        log_debug(f"Strategy A: Opening RTSP (TCP): {normalized}")
         
-        # Set a shorter timeout for the first attempt if possible
-        # Note: os.environ is global, so we rely on URL param mostly
-        cap = cv2.VideoCapture(url_tcp, cv2.CAP_FFMPEG)
+        # Force TCP + Low Latency Flags (Speed Mode)
+        # We try aggressive no-buffer settings first.
+        # If this fails verify_capture(), we fall back to Strategy B.
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+            "rtsp_transport;tcp|"
+            "fflags;nobuffer|"
+            "flags;low_delay|"
+            "max_delay;0|"
+            "timeout;3000000"
+        )
         
-        if cap.isOpened():
-            log_debug("Strategy A: Success")
-            return cap
+        cap = cv2.VideoCapture(normalized, cv2.CAP_FFMPEG)
+        if verify_capture(cap):
+             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+             log_debug("Strategy A: Success (Verified)")
+             # We Keep the env var? No, better to clear it to avoid leaking to other captures?
+             # actually, if we keep it, it persists for this capture session in C++? 
+             # It's safer to clear it.
+             if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
+                del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
+             return cap
         else:
-            log_debug("Strategy A: Failed. Retrying with Strategy B (UDP/Default)...")
-            cap.release()
-            
-            # Strategy B: Default / UDP
-            log_debug(f"Strategy B: Opening RTSP (Default): {normalized}")
-            cap_udp = cv2.VideoCapture(normalized, cv2.CAP_FFMPEG)
-            
-            if cap_udp.isOpened():
-                 log_debug("Strategy B: Success")
-            else:
-                 log_debug("Strategy B: Failed")
-            
-            return cap_udp
+             log_debug("Strategy A (TCP) Failed Verification. Retrying UDP/Default...")
+             cap.release()
+             
+             # Strategy B: Clean try (UDP/Default)
+             if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
+                del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
+
+             # Ensure fallback doesn't inherit the TCP flag
+             os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "timeout;5000000"
+
+             cap = cv2.VideoCapture(normalized, cv2.CAP_FFMPEG)
+             if verify_capture(cap):
+                  cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                  log_debug("Strategy B: Success (Verified)")
+                  if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
+                      del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
+                  return cap
+             
+             log_debug("Strategy B: Failed Verification")
+             if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
+                  del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
+             return cap
 
     # 3. Everything else (HTTP, Files)
     log_debug(f"Opening as Generic Source")
-    return cv2.VideoCapture(rtsp_url)
+    cap = cv2.VideoCapture(rtsp_url)
+    if cap.isOpened():
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    return cap
 
 
 def encode_jpeg(frame):
@@ -210,23 +254,24 @@ def encode_jpeg(frame):
 # ==========================================
 # ⚡ THREADED CAMERA READER
 # ==========================================
+    # ==========================================
+# ⚡ THREADED CAMERA READER
+# ==========================================
 class ThreadedCamera:
     """
     Reads frames in a separate thread to always ensure the 
     latest frame is available. Solves the 'growing buffer' latency issue.
+    Async/Non-blocking initialization to prevent API hangs.
     """
     def __init__(self, src):
         self.src = src
-        self.cap = open_capture(src)
+        self.cap = None # Initialize as None, connect in thread
         self.frame = None
         self.ret = False
         self.stopped = False
         self.lock = threading.Lock()
         self.fail_count = 0
-        
-        # Initial read
-        if self.cap.isOpened():
-            self.ret, self.frame = self.cap.read()
+        self.started = False
         
     def start(self):
         t = threading.Thread(target=self.update, args=(), daemon=True)
@@ -234,11 +279,17 @@ class ThreadedCamera:
         return self
 
     def update(self):
+        # 1. Initial Connection (Background)
+        log_debug(f"ThreadedCamera: Background connecting to {self.src}...")
+        self.cap = open_capture(self.src)
+        self.started = True
+        
         while not self.stopped:
-            if not self.cap.isOpened():
-                time.sleep(0.5)
-                # Try reconnecting
-                self.cap.release()
+            # Reconnection Logic
+            if self.cap is None or not self.cap.isOpened():
+                if self.cap:
+                    self.cap.release()
+                time.sleep(1.0) # Wait before reconnect
                 self.cap = open_capture(self.src)
                 if not self.cap.isOpened():
                     self.fail_count += 1
@@ -272,7 +323,7 @@ class ThreadedCamera:
             self.cap.release()
 
     def is_opened(self):
-        return self.cap.isOpened()
+        return self.cap is not None and self.cap.isOpened()
         
     def get_fail_count(self):
         return self.fail_count
@@ -288,6 +339,7 @@ def generate_stream(camera_id: str, db: Session):
     """
     global last_event_time
     camera_id = camera_id.strip()
+    video_thread = None
 
     # 1. Initial database lookup
     cam = (
@@ -303,15 +355,12 @@ def generate_stream(camera_id: str, db: Session):
     rtsp_url = cam.rtsp_url
     print(f"📡 [AI Stream] Connecting to {camera_id}...")
 
-    # Start Threaded Reader
+    # Start Threaded Reader (Non-blocking now)
     video_thread = ThreadedCamera(rtsp_url).start()
     
-    if not video_thread.is_opened():
-        print(f"❌ Failed to open Source for {camera_id}")
-        video_thread.stop()
-        yield create_error_frame("CONNECTION FAILED")
-        return
-
+    # We no longer fail immediately. We wait for the thread to connect.
+    # Yielding a 'Loading' frame initially is good UX.
+    
     frame_count = 0
     cached_boxes = []
 
@@ -352,7 +401,16 @@ def generate_stream(camera_id: str, db: Session):
             success, raw_frame = video_thread.read()
             
             if not success or raw_frame is None:
-                # Thread might be reconnecting, just wait a tiny bit
+                # If starting up, show LOADING
+                if frame_count == 0:
+                    current_time = time.time()
+                    if (current_time - last_sent_time) > 1.0:
+                         yield create_error_frame("LOADING...")
+                         last_sent_time = current_time
+                    time.sleep(0.1)
+                    continue
+
+                # Thread might be reconnecting during stream
                 time.sleep(0.01)
                 continue
 
@@ -453,14 +511,20 @@ def generate_stream(camera_id: str, db: Session):
                 last_event_time[camera_id] = now
                 print(f"📸 Snapshot saved with boxes: {filename}")
 
+                # 🚀 Trigger Notification (Non-blocking ideally, but calling directly for now)
+                try:
+                    # Reload settings to get latest config
+                    current_settings = settings_module.load_settings()
+                    from app.services.notifications import send_discord_notification
+                    send_discord_notification(new_event, current_settings)
+                except Exception as e:
+                    print(f"⚠️ Notification error: {e}")
+
+
             # ---------------------------------------------------------
-            # 7. STREAM TO BROWSER (FPS LIMITED)
+            # 7. STREAM TO BROWSER (UNLIMITED FPS)
             # ---------------------------------------------------------
-            now = time.time()
-            elapsed = now - last_sent_time
-            if elapsed < FRAME_INTERVAL:
-                time.sleep(FRAME_INTERVAL - elapsed)
-            last_sent_time = time.time()
+            # removed sleep for max throughput
 
             info = (
                 f"Cam: {camera_id} | Persons: {current_person_count} "
@@ -499,7 +563,8 @@ def generate_stream(camera_id: str, db: Session):
         traceback.print_exc()
         yield create_error_frame("SERVER ERROR")
     finally:
-        cap.release()
+        if video_thread:
+            video_thread.stop()
         print(f"🛑 Stream released: {camera_id}")
 
 
@@ -561,12 +626,7 @@ def generate_raw_stream(camera_id: str, db: Session):
 
             frame = cv2.resize(frame, STREAM_RESOLUTION)
 
-            # FPS limiting for smooth playback
-            now = time.time()
-            elapsed = now - last_sent_time
-            if elapsed < FRAME_INTERVAL:
-                time.sleep(FRAME_INTERVAL - elapsed)
-            last_sent_time = time.time()
+            # FPS limiting removed for raw speed
 
             jpeg_bytes = encode_jpeg(frame)
             if jpeg_bytes is None:

@@ -12,8 +12,9 @@ from fastapi import (
     WebSocketDisconnect,
 )
 
-from app.database import SessionLocal
-from app import models, schemas
+from app.core.database import SessionLocal
+from app.models import all_models as models
+from app.schemas import all_schemas as schemas
 
 
 router = APIRouter()

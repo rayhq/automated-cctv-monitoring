@@ -1,17 +1,18 @@
-# app/main.py
 import threading
+import signal
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.database import Base, engine
-from app import models
-from app.routes import auth, events, cameras, video, admin
-from app.websockets import manager  # 🔴 NEW: websocket connection manager
-
-
+from app.core.database import Base, engine
+from app.models import all_models as models
+from app.api.endpoints import auth, events, cameras, video, admin, settings 
+# Ensure video module is correctly referenced if imported from package
+import app.api.endpoints.video as video_module 
+from app.api.websockets import manager
 
 # ---------------------------------------------------------
 # 🛑 GRACEFUL SHUTDOWN LOGIC
@@ -19,40 +20,46 @@ from app.websockets import manager  # 🔴 NEW: websocket connection manager
 # This event acts as a global "kill switch" for the video loops
 stop_event = threading.Event()
 
-
+def signal_handler(sig, frame):
+    print("\n🛑 Ctrl+C received (Signal Handler). Stopping services...")
+    # Force reload trigger check
+    stop_event.set()
+    # Let uvicorn handle the actual exit, but strictly set event first
+    
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 1. Startup Logic
     print("🚀 Server Starting...")
+    
+    # Register Signal Handlers (Backup for Windows)
+    original_sigint = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
-    # Pass the stop event to the video router so it can listen for it
-    if hasattr(video, "set_stop_event"):
-        video.set_stop_event(stop_event)
+    # Pass the stop event to the video router
+    if hasattr(video_module, "set_stop_event"):
+        video_module.set_stop_event(stop_event)
 
     yield  # The application runs here
 
     # 2. Shutdown Logic (Triggers on Ctrl+C)
     print("🛑 Server Shutting Down... Signaling threads to stop.")
     stop_event.set()
-
-
-# ---------------------------------------------------------
-# 🏗️ APP INITIALIZATION
-# ---------------------------------------------------------
-Base.metadata.create_all(bind=engine)
+    
+    # Restore original signal handler
+    signal.signal(signal.SIGINT, original_sigint)
 
 app = FastAPI(
     title="Automated CCTV Monitoring System",
     version="0.1.0",
-    lifespan=lifespan,  # <--- Link the shutdown logic here
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------
 # 🌐 CORS CONFIGURATION
 # ---------------------------------------------------------
 origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "*", # Allow all origins for easier local network deployment
 ]
 
 app.add_middleware(
@@ -76,6 +83,9 @@ app.include_router(events.router, prefix="/api/events", tags=["Events"])
 app.include_router(cameras.router, prefix="/api/cameras", tags=["Cameras"])
 app.include_router(video.router, tags=["Video"])
 app.include_router(admin.router)
+app.include_router(settings.router)
+
+
 
 
 # ---------------------------------------------------------
