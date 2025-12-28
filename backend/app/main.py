@@ -24,21 +24,10 @@ setup_logging()
 # This event acts as a global "kill switch" for the video loops
 stop_event = threading.Event()
 
-def signal_handler(sig, frame):
-    print("\n[STOP] Ctrl+C received (Signal Handler). Stopping services...")
-    # Force reload trigger check
-    stop_event.set()
-    # Let uvicorn handle the actual exit, but strictly set event first
-    
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 1. Startup Logic
     print("[STARTup] Server Starting...")
-    
-    # Register Signal Handlers (Backup for Windows)
-    original_sigint = signal.getsignal(signal.SIGINT)
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
 
     # Pass the stop event to the video router
     if hasattr(video_module, "set_stop_event"):
@@ -55,9 +44,6 @@ async def lifespan(app: FastAPI):
     # 2. Shutdown Logic (Triggers on Ctrl+C)
     print("[STOP] Server Shutting Down... Signaling threads to stop.")
     stop_event.set()
-    
-    # Restore original signal handler
-    signal.signal(signal.SIGINT, original_sigint)
 
 app = FastAPI(
     title="Automated CCTV Monitoring System",

@@ -5,6 +5,7 @@ import { API_BASE } from "../services/api";
 
 const CameraCard = ({ cam, onToggle, onDelete }) => {
     const [imageError, setImageError] = useState(false);
+    const [streamId, setStreamId] = useState(Date.now());
 
     // Reset error state if camera becomes active or ID changes
     // This allows the image to try loading again if it was previously broken
@@ -12,8 +13,23 @@ const CameraCard = ({ cam, onToggle, onDelete }) => {
     React.useEffect(() => {
         if (cam.is_active) {
             setImageError(false);
+            setStreamId(Date.now());
         }
     }, [cam.is_active, cam.camera_id]);
+
+    // Instant Resume: Refresh stream when tab becomes visible to drop old buffer
+    React.useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && cam.is_active) {
+                setStreamId(Date.now());
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [cam.is_active]);
 
     return (
         <motion.div
@@ -41,7 +57,7 @@ const CameraCard = ({ cam, onToggle, onDelete }) => {
                 {cam.is_active && !imageError && (
                     <img
                         key={`${cam.camera_id}-${cam.is_active}`} // Force re-mount on status change
-                        src={`${API_BASE}/api/video/stream/${cam.camera_id}`}
+                        src={`${API_BASE}/api/video/stream/${cam.camera_id}?t=${streamId}`}
                         className="relative z-10 w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-500 group-hover:scale-105"
                         onError={() => setImageError(true)}
                         alt={`Stream for ${cam.name}`}

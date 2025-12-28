@@ -1,126 +1,87 @@
-# Automated CCTV Surveillance System (ACSS)
+# 🦅 Automated CCTV Monitoring System
 
-> **"Privacy is a myth. Security is a process."**
+![Project Status](https://img.shields.io/badge/Status-Active-emerald)
+![Python](https://img.shields.io/badge/Backend-Python_3.11_%7C_FastAPI-blue?logo=python)
+![Frontend](https://img.shields.io/badge/Frontend-React_%7C_Vite_%7C_Tailwind-cyan?logo=react)
+![AI](https://img.shields.io/badge/AI-YOLOv8_%7C_CUDA_Enabled-purple?logo=nvidia)
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![YOLOv8](https://img.shields.io/badge/AI-YOLOv8-FFCC00?style=for-the-badge&logo=ultralytics&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+A professional-grade, AI-powered surveillance system designed for real-time monitoring. It uses advanced computer vision to detect people and security events, offering a premium "Apple-style" dashboard for management.
 
-## 👁️ Overview
+## ✨ Key Features
 
-**ACSS** is a high-performance, real-time surveillance pipeline designed for the **automated detection of security anomalies**. Built for speed and reliability, it leverages **YOLOv8** inference to identify threats (e.g., Intruders, Mobile Phones) and provides instant alerts via a modern, reactive dashboard.
+-   **🧠 Advanced A.I. Core**:
+    -   Powered by **YOLOv8** (Object Detection) & **PyTorch**.
+    -   **GPU Accelerated** (NVIDIA CUDA) for lightning-fast inference.
+    -   Detects **Persons** and **Cell Phones** in real-time.
 
-This is not just a camera viewer. It is an **intelligence layer** for your physical security infrastructure.
+-   **⚡ High-Performance Streaming**:
+    -   **Zero-Lag** MJPEG Streaming over WebSocket/HTTP.
+    -   **Universal Balanced Profile**: Optimized 480p @ 60fps for compatibility with RTX 3050/4060 and standard Wi-Fi.
+    -   **Smart Resume**: Instantly re-syncs video when switching tabs to prevent buffering lag.
 
-## ⚡ Key Capabilities
+-   **🖥️ Modern Dashboard**:
+    -   **Glassmorphism UI**: Beautiful, dark-mode interface with neon accents.
+    -   **Draggable Grid**: Reorder camera lists easily.
+    -   **Live Stats**: Real-time server load, active cameras, and event counters.
 
-*   **Real-Time Inference**: Optimized YOLOv8 pipeline forsub-second detection latency.
-*   **Asynchronous Core**: Non-blocking FastAPI backend ensures video streams never freeze.
-*   **Edge-Ready**: Runs on local hardware with NVIDIA CUDA acceleration (or CPU fallback).
-*   **Smart Alerts**: Instant detection and logging of security events.
-*   **Modern Dashboard**: A premium "Apple-style" interface built with React, Vite, and TailwindCSS.
+-   **📱 Mobile Integration**:
+    -   **Phone-as-Camera**: Turn any Android/iOS phone into a wireless network camera.
+    -   **Responsive Design**: Dashboard works flawlessly on mobile browsers.
 
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    A[RTSP Camera Array] -->|Stream| B(Backend Core)
-    B -->|Frames| C{YOLOv8 / AI Models}
-    C -->|Anomaly?| D[Event Processor]
-    D -->|Log| E[(SQLite Database)]
-    D -->|Snapshot| F[Media Storage]
-    B -->|WebSocket| G[Frontend Dashboard]
-```
-
-## 📂 Project Structure
-
-The project is organized into two main components:
-
-### Backend (`backend/`)
--   **`ai_models/`**: Stores YOLOv8 model weights (`yolov8n.pt`).
--   **`app/`**: Core application logic (API, detection services, database).
--   **`data/`**: SQLite databases (`cctv.db`) and test media.
--   **`scripts/`**: Utility scripts for debugging and testing.
--   **`logs/`**: Application logs.
-
-### Frontend (`frontend/`)
--   **`src/`**: React source code (Components, Pages, Context).
--   **`public/`**: Static assets.
-
-## 🛠️ Installation & Setup
+## 🚀 Installation
 
 ### Prerequisites
-*   **Python 3.10+**
-*   **Node.js 18+**
-*   (Optional) NVIDIA GPU + CUDA Toolkit for acceleration
+-   **Python 3.11** (Required for Torch/CUDA 12.1 compatibility)
+-   **Node.js** (v18+)
+-   **NVIDIA GPU** (Recommended for AI features)
 
-### 🚀 Automated Setup
-
-**1. Clone the Repository**
+### 1. Clone & Backend Setup
 ```bash
 git clone https://github.com/yourusername/automated-cctv-monitoring.git
-cd automated-cctv-monitoring
+cd automated-cctv-monitoring/backend
+
+# Create Virtual Env
+python -m venv venv
+source venv/Scripts/activate  # Windows: venv\Scripts\activate
+
+# Install Dependencies (includes PyTorch CUDA)
+pip install -r requirements.txt
 ```
 
-**2. Run Setup Script**
-*   **Windows (PowerShell)**:
-    ```powershell
-    .\setup.ps1
-    ```
-*   **Linux / macOS**:
-    ```bash
-    chmod +x setup.sh
-    ./setup.sh
-    ```
+### 2. Frontend Setup
+```bash
+cd ../frontend
+npm install
+```
 
-### 🚦 Running the Application
+## 🏃‍♂️ Usage
 
-**1. Start Backend Server**
-Open a terminal in the root directory:
+### Start Backend
 ```bash
 cd backend
-# Activate Virtual Environment
-# Windows:
-.\venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# Run Server
+source venv/Scripts/activate
 uvicorn app.main:app --reload
 ```
-*The backend API will run at `http://localhost:8000`.*
+*Backend runs on: `http://localhost:8000`*
 
-**2. Start Frontend Dashboard**
-Open a second terminal in the root directory:
+### Start Frontend
 ```bash
 cd frontend
 npm run dev
 ```
-*The dashboard will run at `http://localhost:5173`.*
+*Frontend runs on: `http://localhost:5173`*
 
-## 🧪 Testing & Debugging
+## 📱 Adding Cameras
+You can add **RTSP** or **HTTP (MJPEG)** streams.
+-   **IP Webcam (Android)**: `http://192.168.1.X:8080/video`
+-   **Standard RTSP**: `rtsp://user:pass@192.168.1.X:554/stream`
 
--   **Debug Images**: Run `python backend/scripts/debug_images.py` to check database connections and image paths.
--   **Verify Stream**: Ensure your camera inputs are valid in the settings page.
+## 🛠️ Configuration
+-   **Settings Page**: Manage storage, sensitive areas, and user accounts.
+-   **Data Management**: Use "Delete All Events" to instantly purge database logs and media files to save disk space.
 
-## ⚠️ Legal & Ethical Disclaimer
+## 🤝 Contributing
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-**READ CAREFULLY.**
-
-This software is provided for **educational, research, and authorized defensive security purposes only**.
-
-*   **Consent**: Do not use this software to monitor individuals without their explicit consent or legal authorization.
-*   **Compliance**: You are solely responsible for ensuring that your use of this software complies with all applicable local, state, and federal laws regarding privacy and surveillance.
-*   **Liability**: The authors and contributors explicitly disclaim any liability for the misuse of this software.
-
-## 🔒 Security Notes
-
-*   **Credentials**: Never commit `.env` files to version control.
-*   **Access Control**: Ensure the application is behind a secure firewall if exposed to the network.
-*   **Data Privacy**: All event logs and snapshots are stored locally in `backend/data` and `backend/media`.
-
----
-
-*Initiative 710. End of Line.*
+## 📜 License
+[MIT](https://choosealicense.com/licenses/mit/)

@@ -1,4 +1,7 @@
 # app/routes/admin.py
+import os
+import shutil
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
@@ -80,11 +83,28 @@ def reset_events(
     _: models.User = Depends(get_current_admin),  # just to enforce admin auth
 ):
     """
-    Delete ALL events from the database, but keep users and cameras.
+    Delete ALL events from the database AND wipe the media folder.
     """
+    # 1. Clear Database
     db.query(models.Event).delete()
     db.commit()
-    return {"detail": "All events deleted successfully."}
+
+    # 2. Clear Media Files
+    # backend/app/api/endpoints/admin.py -> backend/
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+    MEDIA_DIR = BASE_DIR / "media"
+    
+    deleted_count = 0
+    if MEDIA_DIR.exists():
+        for item in MEDIA_DIR.iterdir():
+            if item.is_file():
+                try:
+                    item.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting {item}: {e}")
+
+    return {"detail": f"All events deleted. Cleared {deleted_count} media files."}
 
 
 # ---------------------------

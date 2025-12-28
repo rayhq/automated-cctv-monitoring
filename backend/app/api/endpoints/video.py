@@ -21,7 +21,7 @@ import app.api.endpoints.settings as settings_module
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-logger.info("✅ VIDEO MODULE LOADED (video.py)")
+logger.info("[INFO] VIDEO MODULE LOADED (video.py)")
 
 # ==========================================
 # 🔧 GLOBAL FFMPEG / RTSP SETTINGS
@@ -50,10 +50,10 @@ def set_stop_event(e: threading.Event):
 # ==========================================
 CONFIDENCE_THRESHOLD = 0.4
 FRAME_SKIP = 3
-STREAM_RESOLUTION = (640, 360)
+STREAM_RESOLUTION = (854, 480)
 EVENT_COOLDOWN = 15.0
 
-JPEG_QUALITY = 40            # Aggressive compression for speed
+JPEG_QUALITY = 60            # Aggressive compression for speed
 MAX_CONSECUTIVE_FAILS = 30
 
 # Colors (B, G, R)
@@ -147,7 +147,7 @@ def add_tcp_param(rtsp_url: str) -> str:
 
 
 def log_debug(msg):
-    logger.info(f"📹 [VIDEO DEBUG] {msg}")
+    logger.info(f"[VIDEO DEBUG] {msg}")
 
 def verify_capture(cap):
     """
@@ -326,12 +326,12 @@ def generate_stream(camera_id: str, db: Session):
         .first()
     )
     if not cam or not cam.is_active:
-        print(f"🚫 Camera {camera_id} offline/inactive")
+        print(f"[STOP] Camera {camera_id} offline/inactive")
         yield create_error_frame(f"OFFLINE: {camera_id}")
         return
 
     rtsp_url = cam.rtsp_url
-    print(f"📡 [AI Stream] Connecting to {camera_id}...")
+    print(f"[STREAM] [AI Stream] Connecting to {camera_id}...")
 
     # Start Threaded Reader (Non-blocking now)
     video_thread = ThreadedCamera(rtsp_url).start()
@@ -366,12 +366,12 @@ def generate_stream(camera_id: str, db: Session):
                      .first()
                  )
                  if not cam_state or not cam_state[0]:
-                     print(f"🚫 Camera {camera_id} disabled by user.")
+                     print(f"[STOP] Camera {camera_id} disabled by user.")
                      break
             
             # 3) GET LATEST FRAME
             if video_thread.get_fail_count() > MAX_CONSECUTIVE_FAILS:
-                 print(f"⚠️ {camera_id} connection lost.")
+                 print(f"[WARN] {camera_id} connection lost.")
                  video_thread.stop()
                  yield create_error_frame("CONNECTION LOST")
                  return
