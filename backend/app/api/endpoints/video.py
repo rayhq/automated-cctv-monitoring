@@ -1,5 +1,6 @@
 # app/routes/video.py
 import os
+import logging
 import time
 import threading
 import traceback
@@ -19,7 +20,8 @@ from app.services.detection import ObjectDetector
 import app.api.endpoints.settings as settings_module
 
 router = APIRouter()
-print("✅ VIDEO MODULE LOADED (video.py)")
+logger = logging.getLogger(__name__)
+logger.info("✅ VIDEO MODULE LOADED (video.py)")
 
 # ==========================================
 # 🔧 GLOBAL FFMPEG / RTSP SETTINGS
@@ -142,8 +144,10 @@ def add_tcp_param(rtsp_url: str) -> str:
     return rtsp_url + "?tcp"
 
 
+
+
 def log_debug(msg):
-    print(f"📹 [VIDEO DEBUG] {msg}")
+    logger.info(f"📹 [VIDEO DEBUG] {msg}")
 
 def verify_capture(cap):
     """

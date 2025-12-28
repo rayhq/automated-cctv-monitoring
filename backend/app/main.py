@@ -13,6 +13,10 @@ from app.api.endpoints import auth, events, cameras, video, admin, settings
 # Ensure video module is correctly referenced if imported from package
 import app.api.endpoints.video as video_module 
 from app.services.websocket_manager import manager
+from app.core.logging_config import setup_logging
+
+# Initialize Logging
+setup_logging()
 
 # ---------------------------------------------------------
 # 🛑 GRACEFUL SHUTDOWN LOGIC
