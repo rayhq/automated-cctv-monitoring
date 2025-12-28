@@ -24,9 +24,9 @@ A professional-grade, AI-powered surveillance system designed for real-time moni
     -   **Draggable Grid**: Reorder camera lists easily.
     -   **Live Stats**: Real-time server load, active cameras, and event counters.
 
--   **📱 Mobile Integration**:
-    -   **Phone-as-Camera**: Turn any Android/iOS phone into a wireless network camera.
-    -   **Responsive Design**: Dashboard works flawlessly on mobile browsers.
+-   **🛡️ Automated Surveillance**:
+    -   **Universal Compatibility**: Supports industrial **RTSP** cameras and standard IP streams.
+    -   **Responsive Control**: Full system access via any modern web browser (Desktop/Mobile).
 
 ## 🚀 Installation
 
