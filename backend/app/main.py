@@ -16,7 +16,7 @@ from app.services.websocket_manager import manager
 from app.core.logging_config import setup_logging
 
 # Initialize Logging
-setup_logging()
+# setup_logging()
 
 # ---------------------------------------------------------
 # 🛑 GRACEFUL SHUTDOWN LOGIC
