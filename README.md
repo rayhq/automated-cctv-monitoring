@@ -80,8 +80,4 @@ You can add **RTSP** or **HTTP (MJPEG)** streams.
 -   **Settings Page**: Manage storage, sensitive areas, and user accounts.
 -   **Data Management**: Use "Delete All Events" to instantly purge database logs and media files to save disk space.
 
-## 🤝 Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-## 📜 License
-[MIT](https://choosealicense.com/licenses/mit/)
