@@ -11,7 +11,7 @@ import {
   Camera,
   Eye
 } from "lucide-react";
-import { api } from "../services/api";
+import { api, API_BASE } from "../services/api";
 import Skeleton from "../components/Skeleton";
 
 const EventsPage = () => {
@@ -228,7 +228,7 @@ const EventsPage = () => {
                                     <td className="px-6 py-4 text-right">
                                         {event.image_path && (
                                             <a 
-                                                href={`http://127.0.0.1:8000/${event.image_path}`} 
+                                                href={`${API_BASE}/${event.image_path}`} 
                                                 target="_blank" 
                                                 rel="noreferrer"
                                                 className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-medium text-xs bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20"
@@ -269,7 +269,7 @@ const EventCard = ({ event }) => {
             <div className="aspect-video bg-slate-900 relative overflow-hidden">
                 {event.image_path ? (
                     <img 
-                        src={`http://127.0.0.1:8000/${event.image_path}`} 
+                        src={`${API_BASE}/${event.image_path}`} 
                         alt="Event Snapshot" 
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -317,7 +317,7 @@ const EventCard = ({ event }) => {
                     </span>
                     {event.image_path && (
                          <a 
-                            href={`http://127.0.0.1:8000/${event.image_path}`}
+                            href={`${API_BASE}/${event.image_path}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1"

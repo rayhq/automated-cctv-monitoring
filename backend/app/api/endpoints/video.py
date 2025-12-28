@@ -19,6 +19,7 @@ from app.services.detection import ObjectDetector
 import app.api.endpoints.settings as settings_module
 
 router = APIRouter()
+print("✅ VIDEO MODULE LOADED (video.py)")
 
 # ==========================================
 # 🔧 GLOBAL FFMPEG / RTSP SETTINGS
@@ -59,7 +60,9 @@ COLOR_GREEN = (0, 255, 0)    # Safe/Person
 COLOR_TEXT = (255, 255, 255)
 
 # Media Storage
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+MEDIA_DIR = BASE_DIR / "media"
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 MEDIA_DIR = BASE_DIR / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -140,11 +143,7 @@ def add_tcp_param(rtsp_url: str) -> str:
 
 
 def log_debug(msg):
-    try:
-        with open("debug_video.log", "a", encoding="utf-8") as f:
-            f.write(f"{time.ctime()} - {msg}\n")
-    except:
-        pass
+    print(f"📹 [VIDEO DEBUG] {msg}")
 
 def verify_capture(cap):
     """
@@ -162,79 +161,46 @@ def verify_capture(cap):
 
 def open_capture(rtsp_url: str):
     """
-    Open video source with Fallback Strategy:
-    1. Webcam Index (e.g. "0") -> cv2.CAP_DSHOW
-    2. RTSP -> Try TCP first, then UDP/Default
-    3. Files/HTTP -> Default
+    Standard OpenCV Capture.
+    Simplified to increase reliability.
     """
-    log_debug(f"Attempting to open: '{rtsp_url}' (Type: {type(rtsp_url)})")
+    log_debug(f"Attempting to open: '{rtsp_url}'")
     
-    # 1. Webcam Index (e.g. "0")
+    # 1. Webcam Index
     if str(rtsp_url).strip().isdigit():
         idx = int(str(rtsp_url).strip())
-        log_debug(f"Opening as Webcam Index: {idx} with CAP_DSHOW")
         cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
         if cap.isOpened():
              cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return cap
 
-    # 2. RTSP Streams
+    # 2. RTSP Streams (Force TCP for Reliability)
+    # The logs showed massive H.264 packet loss ("missing picture in access unit").
+    # This confirms UDP is failing. We MUST use TCP.
+    
     if str(rtsp_url).lower().startswith("rtsp"):
-        normalized = normalize_rtsp_url(rtsp_url)
+        # Set FFmpeg options via environment variable (Standard OpenCV approach)
+        # rtsp_transport;tcp -> Force reliable transport
+        # fflags;nobuffer    -> Reduce latency
+        # max_delay;0        -> Minimize buffering
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay"
         
-        # Strategy A: TCP (Prioritized for Speed & Reliability)
-        # We use the clean URL but force TCP via environment variable.
-        # Modified: Removed ?tcp suffix injection to avoid 404 errors.
-        log_debug(f"Strategy A: Opening RTSP (TCP): {normalized}")
-        
-        # Force TCP + Low Latency Flags (Speed Mode)
-        # We try aggressive no-buffer settings first.
-        # If this fails verify_capture(), we fall back to Strategy B.
-        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
-            "rtsp_transport;tcp|"
-            "fflags;nobuffer|"
-            "flags;low_delay|"
-            "max_delay;0|"
-            "timeout;3000000"
-        )
-        
-        cap = cv2.VideoCapture(normalized, cv2.CAP_FFMPEG)
-        if verify_capture(cap):
-             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-             log_debug("Strategy A: Success (Verified)")
-             # We Keep the env var? No, better to clear it to avoid leaking to other captures?
-             # actually, if we keep it, it persists for this capture session in C++? 
-             # It's safer to clear it.
-             if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
-                del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
-             return cap
-        else:
-             log_debug("Strategy A (TCP) Failed Verification. Retrying UDP/Default...")
-             cap.release()
-             
-             # Strategy B: Clean try (UDP/Default)
-             if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
-                del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
+        cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            # Clear env var to avoid side effects? 
+            # Actually, safe to leave or clear. We'll clear to be clean.
+            if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
+                 del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
+            return cap
+            
+        # Fallback to default if TCP fails
+        if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
+             del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
 
-             # Ensure fallback doesn't inherit the TCP flag
-             os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "timeout;5000000"
-
-             cap = cv2.VideoCapture(normalized, cv2.CAP_FFMPEG)
-             if verify_capture(cap):
-                  cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                  log_debug("Strategy B: Success (Verified)")
-                  if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
-                      del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
-                  return cap
-             
-             log_debug("Strategy B: Failed Verification")
-             if "OPENCV_FFMPEG_CAPTURE_OPTIONS" in os.environ:
-                  del os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"]
-             return cap
-
-    # 3. Everything else (HTTP, Files)
+    # 3. Generic Fallback
     log_debug(f"Opening as Generic Source")
-    cap = cv2.VideoCapture(rtsp_url)
+    cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
     if cap.isOpened():
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     return cap
@@ -254,18 +220,17 @@ def encode_jpeg(frame):
 # ==========================================
 # ⚡ THREADED CAMERA READER
 # ==========================================
-    # ==========================================
-# ⚡ THREADED CAMERA READER
+# ==========================================
+# ⚡ THREADED CAMERA READER (Polyglot: FFmpeg + OpenCV)
 # ==========================================
 class ThreadedCamera:
     """
-    Reads frames in a separate thread to always ensure the 
-    latest frame is available. Solves the 'growing buffer' latency issue.
-    Async/Non-blocking initialization to prevent API hangs.
+    Reads frames in a separate thread.
+    Simplified: Uses standard OpenCV via open_capture().
     """
     def __init__(self, src):
         self.src = src
-        self.cap = None # Initialize as None, connect in thread
+        self.cap = None 
         self.frame = None
         self.ret = False
         self.stopped = False
@@ -279,8 +244,7 @@ class ThreadedCamera:
         return self
 
     def update(self):
-        # 1. Initial Connection (Background)
-        log_debug(f"ThreadedCamera: Background connecting to {self.src}...")
+        log_debug(f"ThreadedCamera: Connecting to {self.src}...")
         self.cap = open_capture(self.src)
         self.started = True
         
@@ -289,7 +253,7 @@ class ThreadedCamera:
             if self.cap is None or not self.cap.isOpened():
                 if self.cap:
                     self.cap.release()
-                time.sleep(1.0) # Wait before reconnect
+                time.sleep(1.0)
                 self.cap = open_capture(self.src)
                 if not self.cap.isOpened():
                     self.fail_count += 1
@@ -301,17 +265,20 @@ class ThreadedCamera:
             ret, frame = self.cap.read()
             
             with self.lock:
-                if ret:
-                    self.ret = ret
+                if ret and frame is not None:
+                    self.ret = True
                     self.frame = frame
                     self.fail_count = 0
                 else:
                     self.ret = False
                     self.fail_count += 1
                     
-            # Prevent busy loop if camera is dead
             if not ret:
-                time.sleep(0.1)
+                time.sleep(0.05)
+        
+        # End of loop
+        self._release()
+        log_debug("ThreadedCamera: Stopped and Released.")
 
     def read(self):
         with self.lock:
@@ -319,8 +286,15 @@ class ThreadedCamera:
 
     def stop(self):
         self.stopped = True
+        # Do NOT call cap.release() here. 
+        # It causes a Race Condition/Crash if read() is blocking.
+        # The update() loop will call release() when it breaks.
+
+    def _release(self):
+        """Called by the background thread when stopping."""
         if self.cap:
-            self.cap.release()
+             self.cap.release()
+             self.cap = None
 
     def is_opened(self):
         return self.cap is not None and self.cap.isOpened()
@@ -493,7 +467,20 @@ def generate_stream(camera_id: str, db: Session):
                 filename = f"{camera_id}_{int(now)}.jpg"
                 save_path = MEDIA_DIR / filename
 
-                cv2.imwrite(str(save_path), frame)
+                # Save image with fallback
+                try:
+                    success = cv2.imwrite(str(save_path), frame)
+                    if not success:
+                        print(f"⚠️ cv2.imwrite failed for {save_path}. Trying fallback.")
+                        is_success, buffer = cv2.imencode(".jpg", frame)
+                        if is_success:
+                            with open(save_path, "wb") as f_out:
+                                f_out.write(buffer)
+                            print(f"✅ Fallback save success: {save_path}")
+                        else:
+                            print(f"❌ Fallback encoding failed for {camera_id}")
+                except Exception as e:
+                    print(f"❌ Save exception: {e}")
 
                 new_event = models.Event(
                     camera_id=camera_id,
@@ -509,7 +496,7 @@ def generate_stream(camera_id: str, db: Session):
                 db.commit()
 
                 last_event_time[camera_id] = now
-                print(f"📸 Snapshot saved with boxes: {filename}")
+                print(f"📸 Snapshot saved: {filename}")
 
                 # 🚀 Trigger Notification (Non-blocking ideally, but calling directly for now)
                 try:
@@ -670,5 +657,35 @@ def raw_video_stream_endpoint(camera_id: str, db: Session = Depends(get_db)):
     """
     return StreamingResponse(
         generate_raw_stream(camera_id, db),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
+
+@router.get("/video/test")
+def test_static_image():
+    """Returns a static test image to verify browser rendering."""
+    frame = np.zeros((360, 640, 3), dtype=np.uint8)
+    cv2.putText(frame, "TEST PATTERN", (50, 180), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 255), 3)
+    _, buf = cv2.imencode(".jpg", frame)
+    from fastapi.responses import Response
+    return Response(content=buf.tobytes(), media_type="image/jpeg")
+
+def generate_synthetic_stream():
+    """Generates random noise to test streaming infrastructure."""
+    while True:
+        frame = np.random.randint(0, 255, (360, 640, 3), dtype=np.uint8)
+        cv2.putText(frame, f"SYNTHETIC {time.time()}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        _, jpeg = cv2.imencode(".jpg", frame)
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n" +
+            jpeg.tobytes() +
+            b"\r\n"
+        )
+        time.sleep(0.1)
+
+@router.get("/video/synthetic")
+def synthetic_stream_endpoint():
+    return StreamingResponse(
+        generate_synthetic_stream(),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )

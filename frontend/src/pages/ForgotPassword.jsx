@@ -9,9 +9,9 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
+import { API_BASE } from "../services/api";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = API_BASE;
 
 const ForgotPassword = () => {
   const navigate = useNavigate();

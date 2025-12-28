@@ -7,7 +7,7 @@ from ultralytics import YOLO
 logger = logging.getLogger(__name__)
 
 class ObjectDetector:
-    def __init__(self, model_path: str = "yolov8n.pt", conf_threshold: float = 0.4):
+    def __init__(self, model_path: str = "ai_models/yolov8n.pt", conf_threshold: float = 0.4):
         self.model_path = model_path
         self.conf_threshold = conf_threshold
         self.model = None

@@ -1,5 +1,17 @@
 // src/services/api.js
-const API_BASE = "http://127.0.0.1:8000";
+// 1. Dynamic Base URL (Environment -> Window determination -> Default)
+const getBaseUrl = () => {
+    if (import.meta.env.VITE_API_BASE_URL) {
+        return import.meta.env.VITE_API_BASE_URL;
+    }
+    // If running on localhost/127.0.0.1, assume backend is on :8000
+    // If deployed, assume backend is relative or on same domain
+    const host = window.location.hostname;
+    return `http://${host}:8001`;
+};
+
+export const API_BASE = getBaseUrl();
+export const API_WS_BASE = API_BASE.replace(/^http/, 'ws');
 
 // Helper for image URLs
 export const getImageUrl = (path) => {
@@ -79,6 +91,12 @@ export const api = {
       },
     });
 
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
+
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
@@ -97,6 +115,12 @@ export const api = {
       },
     });
 
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
+
     if (!res.ok) throw new Error("Failed to load cameras");
     return res.json();
   },
@@ -110,6 +134,12 @@ export const api = {
       },
       body: JSON.stringify(payload),
     });
+
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
 
     if (!res.ok) {
       const text = await res.text();
@@ -128,6 +158,12 @@ export const api = {
       },
     });
 
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
+
     if (!res.ok) {
       const text = await res.text();
       console.error("Toggle camera error:", res.status, text);
@@ -144,6 +180,12 @@ export const api = {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     });
+
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
 
     if (!res.ok) throw new Error("Delete failed");
     return true;
@@ -174,6 +216,12 @@ export const api = {
       },
     });
 
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
+
     if (!res.ok) {
       const text = await res.text();
       console.error("Error fetching events:", res.status, text);
@@ -191,6 +239,12 @@ export const api = {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     });
+
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
 
     if (!res.ok) {
       const text = await res.text();
@@ -250,5 +304,46 @@ export const api = {
       console.error("Health check failed:", error);
       return { status: "error" };
     }
+  },
+  // ---------- SETTINGS ----------
+  async getSettings() {
+    const res = await fetch(`${API_BASE}/api/settings`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+
+    if (!res.ok) throw new Error("Failed to load settings");
+    return res.json();
+  },
+
+  async updateSettings(settings) {
+    const res = await fetch(`${API_BASE}/api/settings`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body: JSON.stringify(settings),
+    });
+
+    if (!res.ok) throw new Error("Failed to update settings");
+    return res.json();
+  },
+
+  async updateProfile(profile) {
+    // Note: This endpoint needs to be implemented in auth.py
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body: JSON.stringify(profile),
+    });
+
+    if (!res.ok) throw new Error("Failed to update profile");
+    return res.json();
   },
 };

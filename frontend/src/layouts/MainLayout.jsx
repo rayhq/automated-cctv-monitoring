@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { api } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Sidebar from "../components/Sidebar";
@@ -9,6 +9,7 @@ import CommandPalette from "../components/CommandPalette";
 const MainLayout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [healthStatus, setHealthStatus] = useState("checking");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -57,20 +58,27 @@ const MainLayout = () => {
       />
 
       {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* NEW TOP BAR */}
-        <TopBar 
-            user={user} 
-            onLogout={handleLogout}
-            isMobileMenuOpen={isMobileMenuOpen}
-            setIsMobileMenuOpen={setIsMobileMenuOpen}
-        />
+      <div className="flex-1 relative flex flex-col overflow-hidden">
+        {/* NEW TOP BAR (Overlay) */}
+        <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
+            {/* Re-enable pointer events for the actual bar */}
+            <div className="pointer-events-auto">
+                <TopBar 
+                    user={user} 
+                    onLogout={handleLogout}
+                    isMobileMenuOpen={isMobileMenuOpen}
+                    setIsMobileMenuOpen={setIsMobileMenuOpen}
+                />
+            </div>
+        </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto p-4 sm:p-6 scrollbar-hide pt-0">
-           {/* Added max-width container for content consistency */}
-           <div className="max-w-7xl mx-auto">
-             <Outlet />
+        <main className="flex-1 overflow-auto px-4 pb-4 pt-24 scrollbar-hide">
+           {/* Full width container */}
+           <div className="w-full">
+             <React.Suspense fallback={<div className="h-full w-full animate-pulse bg-white/5 rounded-xl" />}>
+                <Outlet />
+             </React.Suspense>
            </div>
         </main>
       </div>

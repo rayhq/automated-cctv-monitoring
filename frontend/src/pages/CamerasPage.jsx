@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Camera, Plus, Trash2, ToggleLeft, ToggleRight, X, MapPin, Activity, Signal } from "lucide-react";
-import { api } from "../services/api";
+import { motion } from "framer-motion";
+import { Camera, Plus, X, Activity } from "lucide-react";
+import CameraCard from "../components/CameraCard";
+import { api, API_BASE } from "../services/api";
 
 const CamerasPage = () => {
   const [cameras, setCameras] = useState([]);
@@ -119,62 +121,30 @@ const CamerasPage = () => {
                <button onClick={() => setIsModalOpen(true)} className="text-cyan-400 font-medium hover:underline">Add Camera Now</button>
            </div>
       ) : (
-           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+           <motion.div 
+             className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+             initial="hidden"
+             animate="visible"
+             variants={{
+               hidden: { opacity: 0 },
+               visible: {
+                 opacity: 1,
+                 transition: {
+                   staggerChildren: 0.1
+                 }
+               }
+             }}
+           >
                {cameras.map(cam => (
-                   <div key={cam.camera_id} className="group glass-card rounded-2xl overflow-hidden border border-white/5 hover:border-cyan-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-cyan-900/10">
-                       {/* Preview Header */}
-                       <div className="relative h-48 bg-black group-hover:opacity-90 transition-opacity">
-                            {/* Live Preview Placeholder (Actual impl would fetch snapshot) */}
-                            <img 
-                                src={`http://127.0.0.1:8000/video/stream/${cam.camera_id}`} 
-                                className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-500"
-                                onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/600x400/111/444?text=Signal'; }}
-                            />
-                            
-                            <div className="absolute top-3 right-3 flex gap-2">
-                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-md ${cam.is_active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-500/40 text-slate-300 border-white/10'}`}>
-                                    {cam.is_active ? 'Active' : 'Offline'}
-                                </span>
-                            </div>
-                            
-                            <div className="absolute bottom-3 left-3">
-                                <h3 className="text-white font-bold text-shadow-md">{cam.name}</h3>
-                            </div>
-                       </div>
-
-                       {/* Action Footer */}
-                       <div className="p-4 bg-white/[0.02]">
-                           <div className="flex items-center justify-between mb-4">
-                               <div className="flex items-center gap-2 text-xs text-slate-400">
-                                   <MapPin className="w-3.5 h-3.5" />
-                                   {cam.location || "Unspecified Location"}
-                               </div>
-                               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
-                                   <Signal className="w-3.5 h-3.5" />
-                                   {cam.camera_id}
-                               </div>
-                           </div>
-
-                           <div className="flex items-center gap-3 pt-3 border-t border-white/5">
-                               <button 
-                                onClick={() => handleToggle(cam.camera_id)}
-                                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${cam.is_active ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'}`}
-                               >
-                                   {cam.is_active ? 'Disable Feed' : 'Enable Feed'}
-                               </button>
-                               <button 
-                                onClick={() => handleDelete(cam.camera_id)}
-                                className="p-2 rounded-lg border border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-colors"
-                                title="Delete Camera"
-                               >
-                                   <Trash2 className="w-4 h-4" />
-                               </button>
-                           </div>
-                       </div>
-                   </div>
+                   <CameraCard 
+                       key={cam.camera_id} 
+                       cam={cam} 
+                       onToggle={handleToggle} 
+                       onDelete={handleDelete} 
+                   />
                ))}
-           </div>
-      )}
+           </motion.div>
+       )}
 
       {/* Modal */}
       {isModalOpen && (

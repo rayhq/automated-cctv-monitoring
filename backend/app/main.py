@@ -40,6 +40,12 @@ async def lifespan(app: FastAPI):
     if hasattr(video_module, "set_stop_event"):
         video_module.set_stop_event(stop_event)
 
+    # 🔍 DEBUG: Print all registered routes
+    print("----- REGISTERED ROUTES -----")
+    for route in app.routes:
+        print(f"📍 {route.path} [{route.name}]")
+    print("-----------------------------")
+
     yield  # The application runs here
 
     # 2. Shutdown Logic (Triggers on Ctrl+C)
@@ -54,6 +60,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+# Force Reload Trigger 1
 
 # ---------------------------------------------------------
 # 🌐 CORS CONFIGURATION
@@ -73,7 +80,10 @@ app.add_middleware(
 # ---------------------------------------------------------
 # 📂 STATIC MEDIA FILES
 # ---------------------------------------------------------
-app.mount("/media", StaticFiles(directory="media"), name="media")
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+MEDIA_DIR_ABS = BASE_DIR / "media"
+app.mount("/media", StaticFiles(directory=str(MEDIA_DIR_ABS)), name="media")
 
 # ---------------------------------------------------------
 # 🔗 ROUTERS
@@ -81,9 +91,11 @@ app.mount("/media", StaticFiles(directory="media"), name="media")
 app.include_router(auth.router)
 app.include_router(events.router, prefix="/api/events", tags=["Events"])
 app.include_router(cameras.router, prefix="/api/cameras", tags=["Cameras"])
-app.include_router(video.router, tags=["Video"])
+app.include_router(video.router, prefix="/api", tags=["Video"])
 app.include_router(admin.router)
 app.include_router(settings.router)
+
+
 
 
 

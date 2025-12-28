@@ -1,5 +1,4 @@
-// src/pages/Dashboard.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -23,7 +22,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { api } from "../services/api";
+import { api, API_BASE, API_WS_BASE } from "../services/api";
 import Skeleton from "../components/Skeleton";
 
 // Helper: convert backend UTC timestamp to local time (IST, etc.)
@@ -114,7 +113,12 @@ const Dashboard = () => {
 
   // 2️⃣ Live updates via WebSocket
   useEffect(() => {
-    const ws = new WebSocket("ws://127.0.0.1:8000/api/events/ws");
+    // ... existing websocket code ...
+  }, []);
+
+
+  useEffect(() => {
+    const ws = new WebSocket(`${API_WS_BASE}/api/events/ws`);
 
     ws.onopen = () => {
       console.log("✅ dashboard ws connected");
@@ -126,6 +130,13 @@ const Dashboard = () => {
         const msg = JSON.parse(e.data);
         if (msg.type === "new_event" && msg.event) {
           const newEvent = msg.event;
+
+          // TRIGGER TOAST
+          if (newEvent.event_type === 'intrusion') {
+              addToast(`⚠️ Security Alert: Intrusion detected on ${newEvent.camera_id}`, 'error');
+          } else {
+               addToast(`Info: Activity detected on ${newEvent.camera_id}`, 'info');
+          }
 
           setEvents((prev) => {
             if (prev.some((ev) => ev.id === newEvent.id)) return prev;
@@ -162,6 +173,19 @@ const Dashboard = () => {
 
     return () => ws.close();
   }, []);
+
+  // ---- Toasts Logic ----
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = 'info') => {
+      const id = Date.now();
+      setToasts(prev => [...prev, { id, message, type }]);
+      setTimeout(() => removeToast(id), 5000);
+  };
+
+  const removeToast = (id) => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   // ---- Filters ----
   const filteredEvents = events.filter((event) => {
@@ -240,21 +264,26 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="space-y-5">
-      {/* Small breadcrumb label */}
-      <div>
-        <p className="text-sm font-medium text-[#9CA3AF] mb-1">Dashboard</p>
-      </div>
+    <div className="space-y-6 relative">
+    
+    {/* TOAST CONTAINER */}
+    <div className="fixed top-24 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+        {toasts.map(toast => (
+            <div key={toast.id} className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-xl shadow-2xl animate-slide-in-right min-w-[300px] ${
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-200 shadow-red-500/10' : 'bg-[#0B0F14]/80 border-white/10 text-slate-200'
+            }`}>
+               {toast.type === 'error' ? <ShieldAlert className="w-5 h-5 text-red-400" /> : <Activity className="w-5 h-5 text-cyan-400" />}
+               <div className="flex-1">
+                   <p className="text-sm font-medium">{toast.message}</p>
+               </div>
+               <button onClick={() => removeToast(toast.id)} className="text-slate-500 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+        ))}
+    </div>
 
-      {/* Small breadcrumb label */}
-      <div>
-        <p className="text-sm font-medium text-[#9CA3AF] mb-1">Overview</p>
-      </div>
 
       {/* Hero section removed (moved to TopBar) */}
       
-      {/* Error banner */}
-
       {/* Error banner */}
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3">
@@ -267,13 +296,13 @@ const Dashboard = () => {
       )}
 
       {/* Stat cards row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {loading ? (
            <>
-              <Skeleton height="96px" className="w-full" />
-              <Skeleton height="96px" className="w-full" />
-              <Skeleton height="96px" className="w-full" />
-              <Skeleton height="96px" className="w-full" />
+              <Skeleton height="110px" className="w-full" />
+              <Skeleton height="110px" className="w-full" />
+              <Skeleton height="110px" className="w-full" />
+              <Skeleton height="110px" className="w-full" />
            </>
         ) : (
             <>
@@ -286,6 +315,7 @@ const Dashboard = () => {
                 title="Active Cameras"
                 value={stats.uniqueCameras}
                 icon={Camera}
+                accent="purple"
                 />
                 <StatCard
                 title="Intrusion Alerts"
@@ -297,17 +327,18 @@ const Dashboard = () => {
                 title="Last Event"
                 value={formatEventTime(stats.lastEventTime)}
                 icon={Clock}
+                accent="emerald"
                 />
             </>
         )}
       </div>
 
       {/* 📊 Analytics row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {loading ? (
              <>
-                 <Skeleton height="300px" className="w-full" />
-                 <Skeleton height="300px" className="w-full" />
+                 <Skeleton height="320px" className="w-full" />
+                 <Skeleton height="320px" className="w-full" />
              </>
         ) : (
              <>
@@ -321,43 +352,43 @@ const Dashboard = () => {
       </div>
 
       {/* Main grid: events table + insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Events table */}
         <div className="lg:col-span-2">
-          <div className="rounded-xl glass-card overflow-hidden">
-            <div className="p-4 border-b border-white/5">
-              <h2 className="text-lg font-semibold text-slate-100 mb-3">
+          <div className="rounded-xl glass-card overflow-hidden h-full flex flex-col">
+            <div className="p-5 border-b border-white/5 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-black/20">
+              <h2 className="text-lg font-semibold text-slate-100">
                 Security Events Timeline
               </h2>
 
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex gap-3 w-full sm:w-auto">
                 {/* Search */}
-                <div className="flex-1 relative group glow-focus">
-                  <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
+                <div className="flex-1 sm:flex-initial relative group">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="text"
-                    placeholder="Search by camera or description..."
+                    placeholder="Search events..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 bg-[#0B0F14] border border-[#1F2430] rounded-lg text-[#E5E7EB] placeholder-[#6B7280] focus:outline-none focus:ring-0"
+                    className="w-full sm:w-64 pl-9 pr-9 py-2 bg-[#0B0F14] border border-[#1F2430] rounded-lg text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-cyan-500/50 transition-colors"
                   />
                   {searchTerm && (
                     <button
                       onClick={() => setSearchTerm("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#E5E7EB] transition"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
 
                 {/* Filter */}
-                <div className="relative group glow-focus">
-                  <Filter className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
+                <div className="relative">
+                  <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <select
                     value={eventTypeFilter}
                     onChange={(e) => setEventTypeFilter(e.target.value)}
-                    className="pl-10 pr-8 py-2.5 bg-[#0B0F14] border border-[#1F2430] rounded-lg text-[#E5E7EB] focus:outline-none focus:ring-0 appearance-none cursor-pointer"
+                    className="pl-9 pr-8 py-2 bg-[#0B0F14] border border-[#1F2430] rounded-lg text-sm text-slate-300 focus:outline-none focus:border-cyan-500/50 appearance-none cursor-pointer"
                   >
                     {eventTypes.map((type) => (
                       <option key={type} value={type}>
@@ -371,7 +402,7 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto max-h-[600px]">
+            <div className="overflow-x-auto flex-1 custom-scrollbar">
               {loading ? (
                 <div className="p-4 space-y-3">
                    {[1,2,3,4,5].map(i => (
@@ -379,123 +410,121 @@ const Dashboard = () => {
                    ))}
                 </div>
               ) : filteredEvents.length === 0 ? (
-                <div className="p-10 text-center">
-                  <AlertCircle className="w-12 h-12 text-[#4B5563] mx-auto mb-3" />
-                  <p className="text-[#9CA3AF]">No events found</p>
+                <div className="h-64 flex flex-col items-center justify-center text-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mb-3">
+                    <AlertCircle className="w-6 h-6 text-slate-600" />
+                  </div>
+                  <p className="text-slate-400 font-medium">No events found</p>
+                  <p className="text-slate-600 text-sm">Adjust your filters to see more.</p>
                 </div>
               ) : (
-                <div className="relative">
-                  <table className="w-full">
-                    <thead className="bg-[#0B0F14] text-[#9CA3AF] text-sm sticky top-0 z-10">
-                      <tr>
-                        <th className="px-6 py-3 text-left font-medium">
-                          Time
-                        </th>
-                        <th className="px-6 py-3 text-left font-medium">
-                          Camera
-                        </th>
-                        <th className="px-6 py-3 text-left font-medium">
-                          Event Type
-                        </th>
-                        <th className="px-6 py-3 text-left font-medium">
-                          Confidence
-                        </th>
-                        <th className="px-6 py-3 text-left font-medium">
-                          Description
-                        </th>
-                        <th className="px-6 py-3 text-left font-medium">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1F2430]">
-                      {filteredEvents.map((event) => (
-                        <tr
-                          key={event.id}
-                          className="bg-[#0B0F14] hover:bg-[#101623] transition-colors"
-                        >
-                          <td className="px-6 py-3 text-sm text-[#E5E7EB]">
-                            {formatEventTime(event.timestamp)}
-                          </td>
-                          <td className="px-6 py-3">
-                            <span className="text-sm font-medium text-[#E5E7EB]">
-                              {event.camera_id}
-                            </span>
-                          </td>
-                          <td className="px-6 py-3">
-                            <EventBadge type={event.event_type} />
-                          </td>
-                          <td className="px-6 py-3">
-                            {event.confidence ? (
-                              <span className="text-sm text-[#E5E7EB]">
-                                {(event.confidence * 100).toFixed(1)}%
-                              </span>
-                            ) : (
-                              <span className="text-sm text-[#6B7280]">-</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-3 text-sm text-[#E5E7EB] max-w-xs truncate">
-                            {event.description || "-"}
-                          </td>
-                          <td className="px-6 py-3">
-                            <div className="flex items-center gap-3">
-                              {event.image_path ? (
-                                <a
-                                  href={`http://127.0.0.1:8000/${event.image_path}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[#3B82F6] hover:text-[#60A5FA] text-sm font-medium"
-                                >
-                                  Snapshot
-                                </a>
-                              ) : (
-                                <span className="text-[#6B7280] text-sm">
-                                  -
+                <table className="w-full border-separate border-spacing-y-1">
+                  <thead className="text-xs uppercase tracking-wider text-slate-500 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-6 py-4 text-left font-medium bg-[#0B0F14]">Time</th>
+                      <th className="px-6 py-4 text-left font-medium bg-[#0B0F14]">Camera</th>
+                      <th className="px-6 py-4 text-left font-medium bg-[#0B0F14]">Type</th>
+                      <th className="px-6 py-4 text-left font-medium bg-[#0B0F14]">Score</th>
+                      <th className="px-6 py-4 text-left font-medium bg-[#0B0F14]">Description</th>
+                      <th className="px-6 py-4 text-right font-medium bg-[#0B0F14]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEvents.map((event) => (
+                      <tr
+                        key={event.id}
+                        className="group bg-white/[0.01] hover:bg-white/[0.04] transition-all duration-300 hover:shadow-lg hover:shadow-black/20 hover:scale-[1.002] rounded-xl relative"
+                      >
+                        <td className="px-6 py-4 text-sm text-slate-300 font-mono first:rounded-l-xl last:rounded-r-xl border-t border-b border-l border-white/0 group-hover:border-white/5 first:border-l last:border-r">
+                          {formatEventTime(event.timestamp)}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-slate-200 border-t border-b border-white/0 group-hover:border-white/5">
+                            {event.camera_id}
+                        </td>
+                        <td className="px-6 py-4 border-t border-b border-white/0 group-hover:border-white/5">
+                          <EventBadge type={event.event_type} />
+                        </td>
+                        <td className="px-6 py-4 border-t border-b border-white/0 group-hover:border-white/5">
+                          {event.confidence ? (
+                            <div className="flex items-center gap-2">
+                                <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-cyan-500 shadow-[0_0_8px_currentColor]" 
+                                        style={{ width: `${event.confidence * 100}%` }}
+                                    />
+                                </div>
+                                <span className="text-xs text-slate-400">
+                                    {(event.confidence * 100).toFixed(0)}%
                                 </span>
-                              )}
-                              <button
-                                onClick={() =>
-                                  navigate(`/live?camera=${event.camera_id}`)
-                                }
-                                className="text-[#22C55E] hover:text-[#4ADE80] text-sm font-medium"
-                              >
-                                View Live
-                              </button>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          ) : (
+                            <span className="text-sm text-slate-600">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-400 max-w-xs truncate border-t border-b border-white/0 group-hover:border-white/5">
+                          {event.description || "-"}
+                        </td>
+                        <td className="px-6 py-4 text-right first:rounded-l-xl last:rounded-r-xl border-t border-b border-r border-white/0 group-hover:border-white/5">
+                          <div className="flex items-center justify-end gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                            {event.image_path && (
+                              <a
+                                href={`http://127.0.0.1:8000/${event.image_path}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 hover:bg-white/10 rounded-lg text-cyan-400 transition"
+                                title="View Snapshot"
+                              >
+                                <Camera className="w-4 h-4" />
+                              </a>
+                            )}
+                            <button
+                              onClick={() =>
+                                navigate(`/live?camera=${event.camera_id}`)
+                              }
+                              className="p-1.5 hover:bg-white/10 rounded-lg text-emerald-400 transition"
+                              title="View Live"
+                            >
+                              <Activity className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>
         </div>
 
         {/* Live Security Insights */}
-        <div className="rounded-xl glass-card p-4 h-fit">
-          <h2 className="text-lg font-semibold text-slate-100 mb-3 flex items-center gap-2">
+        <div className="rounded-xl glass-card p-5 h-fit">
+          <h2 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
             <Activity className="w-5 h-5 text-cyan-400" />
-            Live Security Insights
+            Live Insights
           </h2>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {events.slice(0, 5).map((event) => (
               <div
                 key={event.id}
-                className="p-4 bg-[#0B0F14] rounded-lg border border-[#1F2430] glow-hover cursor-pointer"
+                className="p-4 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-white/[0.04] transition-colors cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-2">
                   <EventBadge type={event.event_type} size="sm" />
-                  <span className="text-xs text-[#9CA3AF]">
+                  <span className="text-xs text-slate-500 font-mono">
                     {formatEventTime(event.timestamp)}
                   </span>
                 </div>
-                <p className="text-sm text-[#E5E7EB] mb-1">
-                  <span className="font-medium">{event.camera_id}</span>
-                </p>
+                <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-200 font-medium">
+                        {event.camera_id}
+                    </p>
+                    <span className="text-xs text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        View <Activity className="w-3 h-3" />
+                    </span>
+                </div>
                 {event.description && (
-                  <p className="text-xs text-[#9CA3AF] line-clamp-2">
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
                     {event.description}
                   </p>
                 )}
@@ -509,26 +538,39 @@ const Dashboard = () => {
 };
 
 /** Flatter stat card with larger icon badge */
+/** Flatter stat card with larger icon badge & neon glow */
 const StatCard = ({ title, value, icon: Icon, accent = "blue" }) => {
-  const accentColor =
-    accent === "green"
-      ? "bg-emerald-500/15 text-emerald-400"
-      : accent === "red"
-      ? "bg-red-500/15 text-red-400"
-      : "bg-blue-500/15 text-blue-400";
+  const accents = {
+      blue: "from-blue-500/20 to-blue-600/5 text-blue-400 border-blue-500/20 shadow-blue-900/20",
+      red: "from-red-500/20 to-red-600/5 text-red-400 border-red-500/20 shadow-red-900/20",
+      emerald: "from-emerald-500/20 to-emerald-600/5 text-emerald-400 border-emerald-500/20 shadow-emerald-900/20",
+      purple: "from-purple-500/20 to-purple-600/5 text-purple-400 border-purple-500/20 shadow-purple-900/20",
+  };
+
+  const colorClass = accents[accent] || accents.blue;
+  const iconColor = colorClass.split(" ")[2]; // Extract text-color class
 
   return (
-    <div className="rounded-xl glass-card p-5 flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-slate-400 mb-1">{title}</p>
-        <span className="text-3xl font-bold text-slate-100">{value}</span>
-      </div>
+    <div className="group relative overflow-hidden rounded-2xl glass-card p-6 transition-all duration-500 hover:shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] border border-white/5 hover:border-white/10">
+      
+      {/* Background Gradient */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${colorClass} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
+      
+      <div className="relative z-10 flex items-start justify-between">
+        <div>
+          <p className="text-sm font-medium text-slate-400 mb-1 group-hover:text-slate-300 transition-colors">{title}</p>
+          <span className="text-4xl font-bold text-slate-100 tracking-tight drop-shadow-lg">{value}</span>
+        </div>
 
-      <div
-        className={`w-11 h-11 flex items-center justify-center rounded-lg ${accentColor}`}
-      >
-        <Icon className="w-5 h-5" />
+        <div
+          className={`relative w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 backdrop-blur-md transition-all duration-500 group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-[0_0_20px_-5px_currentColor] ${iconColor}`}
+        >
+          <Icon className="w-6 h-6" />
+        </div>
       </div>
+      
+      {/* Decorative Glow */}
+      <div className={`absolute -right-6 -bottom-6 w-32 h-32 rounded-full opacity-10 blur-3xl transition-all duration-700 group-hover:opacity-20 ${iconColor.replace('text-', 'bg-')}`} />
     </div>
   );
 };
@@ -536,42 +578,68 @@ const StatCard = ({ title, value, icon: Icon, accent = "blue" }) => {
 /* ---------- Charts ---------- */
 
 const EventsOverTimeChart = ({ data }) => (
-  <div className="rounded-xl glass-card p-4">
-    <div className="flex items-center justify-between mb-2">
-      <h3 className="text-sm font-semibold text-slate-100">
-        Events over time
+  <div className="rounded-2xl glass-card p-6 h-full flex flex-col relative overflow-hidden group">
+    <div className="flex items-center justify-between mb-8 z-10">
+      <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
+        <Activity className="w-4 h-4 text-cyan-400" />
+        Events Velocity
       </h3>
-      <span className="text-[11px] text-[#6B7280]">By hour</span>
+      <span className="text-[10px] font-mono px-2 py-1 rounded border border-cyan-500/20 bg-cyan-500/10 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.1)]">
+        LIVE
+      </span>
     </div>
 
     {data.length === 0 ? (
-      <p className="text-xs text-[#6B7280] mt-6">Not enough data yet.</p>
+      <div className="flex-1 flex items-center justify-center">
+         <p className="text-sm text-slate-600 font-mono">-- No Signal --</p>
+      </div>
     ) : (
-      <div className="mt-2">
-        <ResponsiveContainer width="100%" height={220}>
+      <div className="flex-1 min-h-[220px] relative z-10">
+        <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
-            margin={{ top: 10, right: 16, left: -20, bottom: 0 }}
+            margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
           >
-            <CartesianGrid stroke="#111827" vertical={false} />
+             <defs>
+                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.8}/>
+                  <stop offset="100%" stopColor="#0891b2" stopOpacity={0.3}/>
+                </linearGradient>
+            </defs>
+            <CartesianGrid stroke="#1F2430" strokeDasharray="3 3" vertical={false} opacity={0.3} />
             <XAxis
               dataKey="label"
-              tick={{ fill: "#6B7280", fontSize: 11 }}
+              tick={{ fill: "#64748B", fontSize: 10, fontFamily: 'var(--font-mono)' }}
+              tickLine={false}
+              axisLine={false}
               tickFormatter={formatHourToAMPM}
+              dy={15}
             />
             <YAxis
-              tick={{ fill: "#6B7280", fontSize: 11 }}
+              tick={{ fill: "#64748B", fontSize: 10, fontFamily: 'var(--font-mono)' }}
+              tickLine={false}
+              axisLine={false}
               allowDecimals={false}
             />
             <Tooltip
+              cursor={{ fill: 'rgba(34, 211, 238, 0.05)' }}
               contentStyle={{
-                backgroundColor: "#020617",
-                border: "1px solid #1F2430",
-                borderRadius: 8,
-                fontSize: 12,
+                backgroundColor: "rgba(2, 6, 23, 0.8)",
+                backdropFilter: "blur(12px)",
+                border: "1px solid rgba(34, 211, 238, 0.2)",
+                borderRadius: "12px",
+                fontSize: "12px",
+                boxShadow: "0 0 20px rgba(0, 0, 0, 0.5)",
+                color: "#f1f5f9"
               }}
             />
-            <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+            <Bar 
+                dataKey="total" 
+                fill="url(#barGradient)" 
+                radius={[4, 4, 0, 0]} 
+                maxBarSize={50}
+                className="hover:opacity-80 transition-opacity cursor-pointer drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]"
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -579,46 +647,73 @@ const EventsOverTimeChart = ({ data }) => (
   </div>
 );
 
+{/* ... existing code ... */}
+
 const EventsPerCameraChart = ({ data, cameraIds }) => {
-  const colors = ["#60a5fa", "#22c55e", "#a855f7", "#f97316"];
+  const colors = ["#8b5cf6", "#10b981", "#06b6d4", "#f43f5e"];
 
   return (
-    <div className="rounded-xl glass-card p-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-slate-100">
-          Events per camera
+    <div className="rounded-2xl glass-card p-6 h-full flex flex-col relative overflow-hidden">
+      <div className="flex items-center justify-between mb-8 z-10">
+        <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
+            <Camera className="w-4 h-4 text-purple-400" />
+            Camera Activity
         </h3>
-        <span className="text-[11px] text-[#6B7280]">
-          Top cameras · by hour
-        </span>
+        <div className="flex -space-x-2">
+            {cameraIds.map((id, idx) => (
+                <div key={id} className="w-6 h-6 rounded-full border border-[#0B0F14] flex items-center justify-center text-[10px] font-bold text-[#0B0F14]" style={{ backgroundColor: colors[idx % colors.length] }}>
+                    {id.charAt(0)}
+                </div>
+            ))}
+        </div>
       </div>
 
       {data.length === 0 || cameraIds.length === 0 ? (
-        <p className="text-xs text-[#6B7280] mt-6">No camera activity yet.</p>
+        <div className="flex-1 flex items-center justify-center">
+             <p className="text-sm text-slate-600">No camera activity yet.</p>
+        </div>
       ) : (
-        <div className="mt-2">
-          <ResponsiveContainer width="100%" height={220}>
+        <div className="flex-1 min-h-[220px]">
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={data}
-              margin={{ top: 10, right: 16, left: -20, bottom: 0 }}
+              margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
             >
-              <CartesianGrid stroke="#111827" vertical={false} />
+              <defs>
+                 {colors.map((color, idx) => (
+                     <linearGradient key={idx} id={`color${idx}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={color} stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor={color} stopOpacity={0}/>
+                     </linearGradient>
+                 ))}
+              </defs>
+              <CartesianGrid stroke="#1F2430" strokeDasharray="3 3" vertical={false} opacity={0.5} />
               <XAxis
                 dataKey="label"
-                tick={{ fill: "#6B7280", fontSize: 11 }}
+                tick={{ fill: "#64748B", fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
                 tickFormatter={formatHourToAMPM}
+                dy={10}
               />
               <YAxis
-                tick={{ fill: "#6B7280", fontSize: 11 }}
+                tick={{ fill: "#64748B", fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
                 allowDecimals={false}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#020617",
-                  border: "1px solid #1F2430",
-                  borderRadius: 8,
-                  fontSize: 12,
+                  backgroundColor: "rgba(11, 15, 20, 0.8)",
+                  backdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "12px",
+                  fontSize: "12px",
+                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+                  color: "#f1f5f9",
+                  padding: "12px"
                 }}
+                itemStyle={{ paddingBottom: '4px' }}
               />
               {cameraIds.map((camId, idx) => (
                 <Area
@@ -627,10 +722,10 @@ const EventsPerCameraChart = ({ data, cameraIds }) => {
                   dataKey={camId}
                   name={camId}
                   stroke={colors[idx % colors.length]}
-                  fill={colors[idx % colors.length]}
-                  fillOpacity={0.2}
                   strokeWidth={2}
-                  activeDot={{ r: 4 }}
+                  fillOpacity={1}
+                  fill={`url(#color${idx})`}
+                  activeDot={{ r: 6, strokeWidth: 0, fill: colors[idx % colors.length], className: "animate-pulse" }}
                 />
               ))}
             </AreaChart>

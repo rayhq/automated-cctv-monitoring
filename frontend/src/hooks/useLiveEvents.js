@@ -1,12 +1,13 @@
 // src/hooks/useLiveEvents.js
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { API_WS_BASE } from "../services/api";
 
-export function useLiveEvents(onEvent) {
+export function useLiveEvents() {
+  const [events, setEvents] = useState([]);
+
   useEffect(() => {
-    const wsUrl =
-      import.meta.env.VITE_API_WS_URL || "ws://127.0.0.1:8000/ws/events";
-
-    const ws = new WebSocket(wsUrl);
+    // Connect to WebSocket using dynamic URL
+    const ws = new WebSocket(`${API_WS_BASE}/api/events/ws`);
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected");

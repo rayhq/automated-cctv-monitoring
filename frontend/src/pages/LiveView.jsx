@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Camera, Grid, Maximize2, Minimize2, MoreVertical, Settings, LayoutGrid, Layout, Square, Circle, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Activity } from "lucide-react";
-import { api } from "../services/api";
+import { api, API_BASE } from "../services/api";
 
-const BASE_STREAM_URL = "http://127.0.0.1:8000/video/stream";
+const BASE_STREAM_URL = `${API_BASE}/api/video/stream`;
 
 const LiveView = () => {
   const [params] = useSearchParams();
@@ -119,6 +119,8 @@ const LiveView = () => {
 // Sub-component for individual feed
 const VideoCard = ({ camera, isSingle }) => {
     const [isHovered, setIsHovered] = useState(false);
+    // Use timestamp to force refresh if needed, though MJPEG usually handles itself
+    const streamUrl = `${BASE_STREAM_URL}/${camera.camera_id}`;
 
     return (
         <div 
@@ -128,13 +130,13 @@ const VideoCard = ({ camera, isSingle }) => {
         >
              {/* Main Feed */}
              <div className="relative flex-1 bg-black flex items-center justify-center">
-                 <img
-                    src={`${BASE_STREAM_URL}/${camera.camera_id}`}
-                    alt={`Stream ${camera.camera_id}`}
+                 <img 
+                    src={streamUrl}
+                    alt={`Feed ${camera.camera_id}`}
                     className="w-full h-full object-contain"
                     onError={(e) => {
-                        e.target.onerror = null; 
-                        e.target.src='https://placehold.co/640x360/000000/333333?text=Signal+Lost'; // Fallback
+                        e.target.style.display = 'none';
+                        e.target.parentNode.innerHTML += '<div class="absolute inset-0 flex items-center justify-center text-red-500 text-xs font-mono">SIGNAL LOST</div>';
                     }}
                  />
                  

@@ -16,10 +16,10 @@ const Sidebar = ({ user, onLogout, isOpen, onClose }) => {
 
   const sidebarClasses = `
     flex flex-col 
-    md:translate-x-0 md:static md:inset-auto md:w-64 md:m-4 md:mr-0 md:rounded-xl md:h-[calc(100vh-2rem)]
+    md:translate-x-0 md:relative md:inset-auto md:w-64 md:border-r md:border-white/5 md:h-screen md:shrink-0
     fixed inset-y-0 left-0 z-50 w-64 bg-[#0B0F14]/95 backdrop-blur-xl border-r border-white/10 transition-transform duration-300 ease-in-out
     ${isOpen ? "translate-x-0" : "-translate-x-full"}
-    glass-panel md:glass-panel
+    glass-panel md:bg-[#0B0F14]/40 md:backdrop-blur-xl
   `;
 
   return (
@@ -35,19 +35,7 @@ const Sidebar = ({ user, onLogout, isOpen, onClose }) => {
         <aside className={sidebarClasses}>
           <div className="p-3 flex-1 flex flex-col">
             {/* App card */}
-            <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-4 backdrop-blur-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-sky-500/20 flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-sky-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-100 tracking-tight">
-                    AI Sentry
-                  </p>
-                  <p className="text-[10px] text-sky-300 font-medium tracking-wider uppercase">Active Monitoring</p>
-                </div>
-              </div>
-            </div>
+
 
             {/* Main nav */}
             <nav className="space-y-1">

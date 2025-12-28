@@ -1,26 +1,47 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+
 
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
 
 /* =========================================
    GLOBAL STYLES
    ========================================= */
 body {
   margin: 0;
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-sans);
   background-color: #02040a;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(168, 85, 247, 0.08) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(168, 85, 247, 0.05) 0px, transparent 50%);
   background-attachment: fixed;
   color: #e2e8f0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+::selection {
+  background: rgba(34, 211, 238, 0.2);
+  color: #fff;
+}
+
+/* Fix ugly white autofill background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active{
+    -webkit-box-shadow: 0 0 0 30px #0B0F14 inset !important;
+    -webkit-text-fill-color: white !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
 h1, h2, h3, h4, h5, h6 {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-display);
   letter-spacing: -0.01em;
 }
 
@@ -28,135 +49,87 @@ h1, h2, h3, h4, h5, h6 {
    CUSTOM ANIMATIONS
    ========================================= */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes pulse-red {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { opacity: 0.5; box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.1); }
+  50% { box-shadow: 0 0 25px rgba(56, 189, 248, 0.3); }
 }
 
 /* =========================================
    UTILITY CLASSES
    ========================================= */
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out forwards;
-}
+.animate-fade-in { animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-slide-down { animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-slide-in-right { animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-pulse-fast { animation: pulse-red 2s infinite; }
 
-.animate-slide-down {
-  animation: slideDown 0.3s ease-out forwards;
-}
-
-.animate-pulse-fast {
-  animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* ====== MUI-style hover glow / focus ring ====== */
-
-/* Soft hover glow for cards, rows, nav items */
-.glow-hover {
-  transition:
-    box-shadow 0.25s ease,
-    border-color 0.25s ease,
-    background-color 0.25s ease,
-    transform 0.15s ease;
-}
-
-.glow-hover:hover {
-  box-shadow:
-    0 0 0 1px rgba(59, 130, 246, 0.45), /* thin blue outline */
-    0 0 22px rgba(59, 130, 246, 0.2);   /* soft outer glow */
-  border-color: rgba(59, 130, 246, 0.55);
-}
-
-/* Input/card focus ring (e.g. search, dropdowns) */
-.glow-focus {
-  transition:
-    box-shadow 0.25s ease,
-    border-color 0.25s ease;
-}
-
-.glow-focus:focus-within {
-  box-shadow:
-    0 0 0 1px rgba(59, 130, 246, 0.6),
-    0 0 24px rgba(59, 130, 246, 0.28);
-  border-color: rgba(59, 130, 246, 0.7);
-}
-
-/* =========================================
-   CUSTOM SCROLLBAR (Stealth Mode)
-   ========================================= */
-
-/* 1. Width of the scrollbar */
-::-webkit-scrollbar {
-  width: 8px;   /* Vertical scrollbar width */
-  height: 8px;  /* Horizontal scrollbar height */
-}
-
-/* 2. Track (The background of the bar) -> MAKE THIS TRANSPARENT */
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* 3. Thumb (The moving part) -> Dark Gray with rounded corners */
-::-webkit-scrollbar-thumb {
-  background-color: #4b5563; /* gray-600 */
-  border-radius: 20px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-
-/* 4. Hover State -> Slightly lighter when you grab it */
-::-webkit-scrollbar-thumb:hover {
-  background-color: #6b7280; /* gray-500 */
-}
-
-/* 5. Firefox Support */
-html {
-  scrollbar-width: thin;
-  scrollbar-color: #4b5563 transparent;
-}
-
+/* Glass Effects */
 .glass-panel {
-  background: rgba(13, 18, 30, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  background: rgba(13, 18, 30, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
 }
 
 .glass-card {
-  background: rgba(17, 24, 39, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: all 0.3s ease;
+  background: rgba(17, 24, 39, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-card:hover {
-  background: rgba(23, 30, 48, 0.8);
-  border-color: rgba(56, 189, 248, 0.3);
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
+  background: rgba(30, 41, 59, 0.5);
+  border-color: rgba(56, 189, 248, 0.2);
   transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(56, 189, 248, 0.1);
 }
+
+/* Neon Glows */
+.neon-border-blue {
+  box-shadow: 0 0 5px rgba(56, 189, 248, 0.5), inset 0 0 10px rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.6);
+}
+
+.text-glow {
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+/* Scrollbar (Stealth Mode) */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { 
+  background-color: rgba(75, 85, 99, 0.4); 
+  border-radius: 20px; 
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgba(75, 85, 99, 0.7); }
+
+/* Utility for hiding scrollbar but allowing scroll */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Custom Scrollbar class */
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.2); }
+

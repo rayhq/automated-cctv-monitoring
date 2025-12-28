@@ -44,7 +44,7 @@ backend/**/__pycache__/
 *.db
 *.sqlite3
 *.db3
-backend/cctv.db
+# backend/cctv.db # Moved to backend/data/cctv.db (covered by *.db)
 
 # Models / Large Binaries
 *.pt
