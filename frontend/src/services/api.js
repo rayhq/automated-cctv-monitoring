@@ -7,7 +7,7 @@ const getBaseUrl = () => {
     // If running on localhost/127.0.0.1, assume backend is on :8000
     // If deployed, assume backend is relative or on same domain
     const host = window.location.hostname;
-    return `http://${host}:8001`;
+    return `http://${host}:8000`;
 };
 
 export const API_BASE = getBaseUrl();

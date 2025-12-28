@@ -22,7 +22,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { api, API_BASE, API_WS_BASE } from "../services/api";
+import { api, API_BASE, API_WS_BASE, getImageUrl } from "../services/api";
 import Skeleton from "../components/Skeleton";
 
 // Helper: convert backend UTC timestamp to local time (IST, etc.)
@@ -468,7 +468,7 @@ const Dashboard = () => {
                           <div className="flex items-center justify-end gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
                             {event.image_path && (
                               <a
-                                href={`http://127.0.0.1:8000/${event.image_path}`}
+                                href={getImageUrl(event.image_path)}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="p-1.5 hover:bg-white/10 rounded-lg text-cyan-400 transition"

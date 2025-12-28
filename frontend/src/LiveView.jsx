@@ -1,9 +1,10 @@
 // src/pages/LiveView.jsx
 import React from "react";
 import { Camera } from "lucide-react";
+import { API_BASE } from "./services/api";
 
 const LiveView = () => {
-  const STREAM_URL = "http://127.0.0.1:8000/video/stream";
+  const STREAM_URL = `${API_BASE}/video/stream`;
 
   return (
     <div className="space-y-6 animate-[fadeIn_0.5s_ease-in]">

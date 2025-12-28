@@ -16,7 +16,7 @@ from app.services.websocket_manager import manager
 from app.core.logging_config import setup_logging
 
 # Initialize Logging
-# setup_logging()
+setup_logging()
 
 # ---------------------------------------------------------
 # 🛑 GRACEFUL SHUTDOWN LOGIC
@@ -25,7 +25,7 @@ from app.core.logging_config import setup_logging
 stop_event = threading.Event()
 
 def signal_handler(sig, frame):
-    print("\n🛑 Ctrl+C received (Signal Handler). Stopping services...")
+    print("\n[STOP] Ctrl+C received (Signal Handler). Stopping services...")
     # Force reload trigger check
     stop_event.set()
     # Let uvicorn handle the actual exit, but strictly set event first
@@ -33,7 +33,7 @@ def signal_handler(sig, frame):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 1. Startup Logic
-    print("🚀 Server Starting...")
+    print("[STARTup] Server Starting...")
     
     # Register Signal Handlers (Backup for Windows)
     original_sigint = signal.getsignal(signal.SIGINT)
@@ -47,13 +47,13 @@ async def lifespan(app: FastAPI):
     # 🔍 DEBUG: Print all registered routes
     print("----- REGISTERED ROUTES -----")
     for route in app.routes:
-        print(f"📍 {route.path} [{route.name}]")
+        print(f"[ROUTE] {route.path} [{route.name}]")
     print("-----------------------------")
 
     yield  # The application runs here
 
     # 2. Shutdown Logic (Triggers on Ctrl+C)
-    print("🛑 Server Shutting Down... Signaling threads to stop.")
+    print("[STOP] Server Shutting Down... Signaling threads to stop.")
     stop_event.set()
     
     # Restore original signal handler

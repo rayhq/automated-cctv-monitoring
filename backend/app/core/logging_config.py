@@ -29,4 +29,4 @@ def setup_logging():
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
-    logging.info(f"✅ Logging initialized. Logs writing to: {LOG_FILE}")
+    logging.info(f"[INFO] Logging initialized. Logs writing to: {LOG_FILE}")
