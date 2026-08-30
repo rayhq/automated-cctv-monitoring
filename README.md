@@ -78,6 +78,6 @@ You can add **RTSP** or **HTTP (MJPEG)** streams.
 
 ## 🛠️ Configuration
 -   **Settings Page**: Manage storage, sensitive areas, and user accounts.
--   **Data Management**: Use "Delete All Events" to instantly purge database logs and media files to save disk space..
+-   **Data Management**: Use "Delete All Events" to instantly purge database logs and media files to save disk space.
 
 
