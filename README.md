@@ -1,4 +1,4 @@
-# 🦅 Automated CCTV Monitoring System
+# 🦅 Automated CCTV Monitoring System 
 
 ![Project Status](https://img.shields.io/badge/Status-Active-emerald)
 ![Python](https://img.shields.io/badge/Backend-Python_3.11_%7C_FastAPI-blue?logo=python)
